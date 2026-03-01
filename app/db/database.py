@@ -4,9 +4,13 @@ import logging
 from pathlib import Path
 from datetime import datetime
 
+import os
+
 logger = logging.getLogger("pikudhaoref_app.database")
 
-DB_PATH = Path("alerts_history.db")
+# Support dynamic directory paths for persistent Volumes (Railway)
+db_dir = os.getenv("DB_DIR", "")
+DB_PATH = Path(db_dir) / "alerts_history.db"
 
 def get_db_connection():
     """Establish and return a threaded connection to the SQLite database with WAL enabled."""
