@@ -2,21 +2,31 @@ import requests
 import json
 import logging
 import time
+import random
 
 logger = logging.getLogger(__name__)
 
 # Global session to persist cookies and connection
 session = requests.Session()
 
+# List of free Israeli Proxies (HTTP)
+# Note: Free proxies are unreliable; in a production app, use a paid proxy service.
+ISRAELI_PROXIES = [
+    "129.159.159.78:3128",
+    "51.16.6.90:3128",
+    "185.241.5.57:3128",
+    "51.16.49.113:189",
+    "51.85.49.118:8823"
+]
+
 def fetch_active_alerts():
     """
     Fetches the active alerts from the Oref API.
-    Uses more extensive headers, persistent session, and delays to bypass 403 blocks.
+    Uses extensive headers, persistent session, and Israeli proxies to bypass 403 blocks.
     """
     url = "https://www.oref.org.il/WarningMessages/alert/alerts.json"
     home_url = "https://www.oref.org.il/"
     
-    # Very specific headers to match a real browser's fingerprint
     headers = {
         'Host': 'www.oref.org.il',
         'Accept': 'application/json, text/javascript, */*; q=0.01',
@@ -33,39 +43,61 @@ def fetch_active_alerts():
         'Sec-Fetch-Mode': 'cors',
         'Sec-Fetch-Site': 'same-origin'
     }
+
+    def attempt_request(proxy_url=None):
+        proxies = {"http": f"http://{proxy_url}", "https": f"http://{proxy_url}"} if proxy_url else None
+        try:
+            if not session.cookies:
+                logger.debug(f"Pre-flight request (Proxy: {proxy_url or 'Direct'})...")
+                session.get(home_url, headers={'User-Agent': headers['User-Agent']}, timeout=10, proxies=proxies)
+                time.sleep(1)
+            
+            response = session.get(url, headers=headers, timeout=10, proxies=proxies)
+            return response
+        except Exception as e:
+            logger.warning(f"Request failed with proxy {proxy_url or 'Direct'}: {e}")
+            return None
+
+    # Step 1: Try Direct first (might have been a temporary glitch, but usually fails on Railway)
+    response = attempt_request()
     
+    # Step 2: If direct fails or 403, try proxies ONLY on Railway
+    import os
+    is_railway = os.getenv("RAILWAY_ENVIRONMENT") or os.getenv("PORT") is not None
+    
+    if (not response or response.status_code == 403) and is_railway:
+        logger.info("Direct request blocked (403) on Railway. Attempting Israeli proxies...")
+        
+        # Shuffle proxies to distribute load/tests
+        shuffled_proxies = ISRAELI_PROXIES.copy()
+        random.shuffle(shuffled_proxies)
+        
+        for proxy in shuffled_proxies:
+            session.cookies.clear() # Fresh cookies for each proxy attempt
+            logger.info(f"Trying Israeli proxy: {proxy}")
+            response = attempt_request(proxy)
+            
+            if response and response.status_code == 200:
+                logger.info(f"Successfully fetched alerts via proxy: {proxy}")
+                break
+            elif response:
+                logger.warning(f"Proxy {proxy} returned status {response.status_code}")
+    elif response and response.status_code == 403 and not is_railway:
+        logger.warning("Direct request blocked (403) on Localhost. Proxies are disabled for dev.")
+
+    # Final check
+    if not response:
+        return {"error": "All connection attempts (Direct + Proxies) failed"}
+    
+    if response.status_code != 200:
+        logger.error(f"Final response status from Oref: {response.status_code}")
+        return {"error": f"Oref API error: {response.status_code}"}
+
     try:
-        # Pre-flight: Visit homepage if we don't have cookies yet
-        if not session.cookies:
-            logger.info("Performing pre-flight request to Oref homepage for cookies...")
-            session.get(home_url, headers={'User-Agent': headers['User-Agent']}, timeout=10)
-            time.sleep(1.5) # Wait a bit to simulate human reading/loading
-        
-        # Main request
-        response = session.get(url, headers=headers, timeout=10)
-        
-        if response.status_code == 403:
-            logger.error("Oref API returned 403 Forbidden. This likely indicates an IP block on the hosting provider.")
-            return {"error": "Oref 403 Access Denied - Possible IP Block"}
-            
-        if response.status_code != 200:
-            logger.error(f"Oref API returned status code {response.status_code}")
-            return {"error": f"Oref API error: {response.status_code}"}
-            
-        response.raise_for_status()
-        
         content = response.content.decode('utf-8-sig', errors='ignore').strip()
-        
         if not content:
             return None
-            
-        try:
-            data = json.loads(content)
-            return data
-        except json.JSONDecodeError:
-            logger.error(f"Failed to parse JSON. Raw content received: {content}")
-            return {"error": "Failed to parse alerts data from Oref"}
-            
-    except requests.exceptions.RequestException as e:
-        logger.error(f"Error fetching data from Oref: {e}")
-        return {"error": str(e)}
+        return json.loads(content)
+    except Exception as e:
+        logger.error(f"Failed to process Oref response: {e}")
+        return {"error": "Invalid data received from Oref"}
