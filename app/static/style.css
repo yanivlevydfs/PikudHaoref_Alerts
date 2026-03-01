@@ -37,6 +37,24 @@ body {
     min-height: 0;
 }
 
+/* Global Dark Scrollbar for Subpages */
+.main-content::-webkit-scrollbar {
+    width: 6px;
+}
+
+.main-content::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.main-content::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 10px;
+}
+
+.main-content::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.3);
+}
+
 /* Typography */
 h1,
 h2,
@@ -110,6 +128,26 @@ h3 {
 .header-nav a.active {
     color: var(--accent-color);
     text-shadow: 0 0 10px rgba(255, 59, 59, 0.4);
+}
+
+/* Global Header Live Clock */
+.header-clock {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+}
+
+.header-clock .clock-date {
+    font-size: 1.1rem;
+    color: var(--text-primary);
+    font-weight: 500;
+}
+
+.header-clock .clock-time {
+    font-size: 1.5rem;
+    color: var(--accent-color);
+    font-family: var(--font-heading);
+    font-weight: 600;
 }
 
 /* Layout */
@@ -426,6 +464,8 @@ h3 {
     border-radius: 12px !important;
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5) !important;
     overflow: hidden !important;
+    z-index: 9999 !important;
+    /* Fix overlapping underneath settings panels */
 }
 
 .select2-search--dropdown .select2-search__field {
@@ -484,6 +524,8 @@ h3 {
     flex-direction: column;
     gap: 0.6rem;
     margin-top: 1rem;
+    position: relative;
+    z-index: 10;
 }
 
 .setting-item {

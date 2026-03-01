@@ -13,17 +13,28 @@ db_dir = os.getenv("DB_DIR", "")
 DB_PATH = Path(db_dir) / "alerts_history.db"
 
 def get_db_connection():
-    """Establish and return a threaded connection to the SQLite database with WAL enabled."""
+    """Establish and return a threaded connection to the SQLite database with high-performance PRAGMAs."""
     # check_same_thread=False is required for FastAPI global dependencies or BackgroundSchedulers
-    conn = sqlite3.connect(DB_PATH, check_same_thread=False, timeout=15.0)
+    conn = sqlite3.connect(DB_PATH, check_same_thread=False, timeout=20.0, isolation_level=None)
     conn.row_factory = sqlite3.Row
     
     # Enable Write-Ahead Logging (WAL) for high concurrency (readers don't block writers)
     conn.execute('PRAGMA journal_mode=WAL;')
-    # Synchronous NORMAL is perfectly safe in WAL mode and much faster
+    
+    # Synchronous NORMAL is perfectly safe in WAL mode and much faster (less fsync calls)
     conn.execute('PRAGMA synchronous=NORMAL;')
-    # Increase cache size for better performance
+    
+    # Increase cache size for better performance (negative means KB: -64000 = ~64MB)
     conn.execute('PRAGMA cache_size=-64000;')
+    
+    # Keep temp tables and indices in memory rather than on disk
+    conn.execute('PRAGMA temp_store=MEMORY;')
+    
+    # Map the database into memory up to 256MB for ultra-fast reads
+    conn.execute('PRAGMA mmap_size=268435456;')
+    
+    # Busy timeout ensures locked threads wait natively rather than throwing errors immediately
+    conn.execute('PRAGMA busy_timeout=5000;')
     
     return conn
 

@@ -103,6 +103,24 @@
         color: var(--safe-color);
         font-size: 1.2rem;
     }
+
+    /* Custom Scrollbar for the Stats Container */
+    .stats-table-container::-webkit-scrollbar {
+        width: 6px;
+    }
+
+    .stats-table-container::-webkit-scrollbar-track {
+        background: transparent;
+    }
+
+    .stats-table-container::-webkit-scrollbar-thumb {
+        background: rgba(255, 255, 255, 0.2);
+        border-radius: 10px;
+    }
+
+    .stats-table-container::-webkit-scrollbar-thumb:hover {
+        background: rgba(255, 255, 255, 0.3);
+    }
 </style>
 
 <div class="page-container glass-panel">

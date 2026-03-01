@@ -106,7 +106,7 @@ $(document).ready(function () {
 });
 
 // Caching Geocoding Results to be gentle on Nominatim
-const geoCache = JSON.parse(localStorage.getItem('geoCache_v3')) || {};
+const geoCache = JSON.parse(localStorage.getItem('geoCache_v5')) || {};
 
 // Helpers
 function setStatus(state, text) {
@@ -261,14 +261,17 @@ async function plotCitiesOnMap(cities) {
             await new Promise(r => setTimeout(r, 1000)); // Respect openstreetmap ratelimits
 
             try {
-                let res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchCity + ', Israel')}&polygon_geojson=1&limit=1`);
+                // Use strict countrycodes parameter and accept-language to prevent Nominatim from guessing foreign translations (like Tel Aviv for Tal El)
+                const baseUrl = "https://nominatim.openstreetmap.org/search?format=json&polygon_geojson=1&limit=1&countrycodes=il&accept-language=he";
+
+                let res = await fetch(`${baseUrl}&q=${encodeURIComponent(searchCity)}`);
                 let json = await res.json();
 
                 // If no result and multi-word (e.g. "דרומי אשקלון"), safely retry with just the last word ("אשקלון")
                 if (json.length === 0 && searchCity.split(' ').length > 1) {
                     const lastWord = searchCity.split(' ').pop();
                     await new Promise(r => setTimeout(r, 1000));
-                    res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(lastWord + ', Israel')}&polygon_geojson=1&limit=1`);
+                    res = await fetch(`${baseUrl}&q=${encodeURIComponent(lastWord)}`);
                     json = await res.json();
                 }
 
@@ -308,7 +311,7 @@ async function plotCitiesOnMap(cities) {
                     console.warn(`[GEO-MISS] Could not isolate coordinates for ${city}`);
                 }
 
-                localStorage.setItem('geoCache_v3', JSON.stringify(geoCache)); // Retain v3 key seamlessly
+                localStorage.setItem('geoCache_v5', JSON.stringify(geoCache)); // Retain v5 key seamlessly
             } catch (err) {
                 console.error(`[GEO-ERROR] Geocoding failed for ${city}`, err);
             }
