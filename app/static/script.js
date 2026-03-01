@@ -255,16 +255,26 @@ async function plotCitiesOnMap(cities) {
 
             // Aggressive string cleanup to get better Nominatim hit rates
             let searchCity = city.split('-')[0].trim();
-            searchCity = searchCity.replace("אזור תעשייה", "").replace("איזור תעשייה", "").replace("פארק תעשיות", "").replace("בי\"ס", "").trim();
+            // Remove common street/neighborhood prefixes if they aren't part of the city name
+            searchCity = searchCity.replace(/^רחוב\s+/g, "")
+                .replace(/^שדרות\s+(?!(השביעית|הציונות|ירושלים))/g, "") // Keep "Sderot" as a city
+                .replace(/^פארק\s+/g, "")
+                .replace("אזור תעשייה", "")
+                .replace("איזור תעשייה", "")
+                .replace("פארק תעשיות", "")
+                .replace("בי\"ס", "")
+                .trim();
             if (!searchCity) searchCity = city.split('-')[0].trim();
 
             await new Promise(r => setTimeout(r, 1000)); // Respect openstreetmap ratelimits
 
             try {
-                // Use strict countrycodes parameter and accept-language to prevent Nominatim from guessing foreign translations (like Tel Aviv for Tal El)
-                const baseUrl = "https://nominatim.openstreetmap.org/search?format=json&polygon_geojson=1&limit=1&countrycodes=il&accept-language=he";
+                // Use addressdetails=1 to get class/type information for filtering
+                const baseUrl = "https://nominatim.openstreetmap.org/search?format=json&polygon_geojson=1&limit=1&countrycodes=il&accept-language=he&addressdetails=1";
 
-                let res = await fetch(`${baseUrl}&q=${encodeURIComponent(searchCity)}`);
+                let res = await fetch(`${baseUrl}&q=${encodeURIComponent(searchCity)}`, {
+                    headers: { 'User-Agent': 'PikudHaoref_Alerts_Webapp/1.1' }
+                });
                 let json = await res.json();
 
                 // If no result and multi-word (e.g. "דרומי אשקלון"), safely retry with just the last word ("אשקלון")
@@ -277,14 +287,27 @@ async function plotCitiesOnMap(cities) {
 
                 let fetchedData = null;
                 if (json && json.length > 0) {
-                    if (json[0].geojson) {
-                        fetchedData = json[0].geojson; // Valid Polygon
-                    } else if (json[0].lat && json[0].lon) {
-                        // Crucial Fallback: If OSM knows the coordinates but lacks polygon borders, build a GeoJSON Point manually!
-                        fetchedData = {
-                            type: "Point",
-                            coordinates: [parseFloat(json[0].lon), parseFloat(json[0].lat)]
-                        };
+                    const result = json[0];
+
+                    // CRITICAL FILTER: Only accept results that are settlements, cities, villages, or administrative areas.
+                    // Avoid 'highway', 'building', 'amenity', etc.
+                    const allowedClasses = ['place', 'boundary'];
+                    const forbiddenTypes = ['highway', 'street', 'road', 'footway', 'residential', 'service'];
+
+                    const isSettlement = allowedClasses.includes(result.class) && !forbiddenTypes.includes(result.type);
+
+                    if (isSettlement) {
+                        if (result.geojson) {
+                            fetchedData = result.geojson; // Valid Polygon
+                        } else if (result.lat && result.lon) {
+                            // Crucial Fallback: If OSM knows the coordinates but lacks polygon borders, build a GeoJSON Point manually!
+                            fetchedData = {
+                                type: "Point",
+                                coordinates: [parseFloat(result.lon), parseFloat(result.lat)]
+                            };
+                        }
+                    } else {
+                        console.warn(`[GEO-REJECT] Rejected ${city} as it identified as ${result.class}/${result.type}`);
                     }
                 }
 
