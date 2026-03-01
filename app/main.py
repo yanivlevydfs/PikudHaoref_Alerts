@@ -60,13 +60,10 @@ async def lifespan(app: FastAPI):
         replace_existing=True
     )
     
-    logger.info(f"Starting Background Scheduler. Initial interval: {initial_interval}s before adaptive switch.")
+    # Start the scheduler
     scheduler.start()
     
-    # Run immediately on startup
-    scheduled_job()
-    
-    # Yield control back to FastAPI
+    # Yield control back to FastAPI immediately (Startup complete)
     yield
     
     # Shutdown the scheduler when the app is tearing down
@@ -75,14 +72,17 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Rockets & Missles Alerts API",
-    description="A FastAPI wrapper around the official alerts API. Provides an easy-to-use endpoint "
-                "with Swagger UI documentation for fetching real-time alerts in Israel.",
+    description="A FastAPI wrapper around the official alerts API.",
     version="1.0.0",
-    contact={
-        "name": "Yaniv Levy",
-    },
     lifespan=lifespan
 )
+
+@app.get("/health", include_in_schema=False)
+async def health_check():
+    """
+    Lightweight healthcheck for Railway/Automation.
+    """
+    return {"status": "ok"}
 
 from fastapi.templating import Jinja2Templates
 from fastapi import Request
