@@ -1,5 +1,6 @@
 {
     "scheduler": {
-        "interval_seconds": 30
+        "routine_interval_seconds": 120,
+        "emergency_interval_seconds": 10
     }
 }

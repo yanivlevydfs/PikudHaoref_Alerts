@@ -10,7 +10,8 @@ CONFIG_FILE_PATH = Path("config.json")
 # Default configuration
 DEFAULT_CONFIG = {
     "scheduler": {
-        "interval_seconds": 30
+        "routine_interval_seconds": 120,
+        "emergency_interval_seconds": 10
     }
 }
 

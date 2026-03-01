@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Rockets & Missles Alerts{% endblock %}</title>
+    <!-- Google Fonts -->
+    <link
+        href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Inter:wght@400;600&display=swap"
+        rel="stylesheet">
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+    <!-- Select2 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="/static/style.css">
+    {% block extra_head %}{% endblock %}
+</head>
+
+<body>
+    <!-- Global Navigation Header -->
+    <header class="site-header">
+        <div class="header-logo">
+            <a href="/">
+                <span class="logo-icon">🛡️</span>
+                <span class="logo-text">התראות ביטחוניות</span>
+            </a>
+        </div>
+        <nav class="header-nav">
+            <a href="/">ראשי</a>
+            <a href="/archive">ארכיון</a>
+            <a href="/stats">סטטיסטיקה</a>
+            <a href="/about">אודות</a>
+            <a href="/contact">צור קשר</a>
+        </nav>
+    </header>
+
+    <main class="main-content">
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Sleek Compact Footer Overlaid -->
+    <footer class="site-footer">
+        <nav class="footer-nav">
+            <a href="/about">אודות</a>
+            <a href="/contact">צור קשר</a>
+            <a href="/terms">תנאי שימוש</a>
+            <a href="/accessibility">נגישות</a>
+            <a href="/privacy">הצהרת פרטיות</a>
+            <a href="/sitemap">מפת אתר</a>
+            <a href="/stats">סטטיסטיקה</a>
+            <a href="/archive">ארכיון המלא</a>
+        </nav>
+        <div class="footer-copyright">
+            &copy; <span id="currentYear"></span> התראות ביטחוניות
+        </div>
+    </footer>
+
+    <!-- jQuery (Required for Select2) -->
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <!-- Select2 JS -->
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
+    <script>
+        document.getElementById('currentYear').innerText = new Date().getFullYear();
+    </script>
+
+    {% block scripts %}
+    {% endblock %}
+</body>
+
+</html>

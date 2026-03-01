@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="dashboard-container">
+    <!-- Sidebar Panel -->
+    <aside class="sidebar glass-panel">
+        <header class="sidebar-header">
+            <a href="/" style="text-decoration:none; color:inherit;">
+                <h1>התראות ביטחוניות</h1>
+                <p class="subtitle">מערכת התרעות בזמן אמת</p>
+            </a>
+            <div class="status-indicator">
+                <span class="pulse-dot" id="status-dot"></span>
+                <span id="status-text">מתחבר...</span>
+            </div>
+        </header>
+
+        <div class="alert-content" id="alert-content">
+            <div class="no-alerts-screen active" id="no-alerts">
+                <div class="shield-icon">🛡️</div>
+                <h2>שגרה</h2>
+                <p>אין התרעות פעילות כרגע ברחבי הארץ.</p>
+            </div>
+
+            <div class="active-alerts-screen" id="active-alerts">
+                <div class="alert-header">
+                    <h2 id="alert-title" class="critical-text">ירי רקטות וטילים</h2>
+                    <p id="alert-desc">היכנסו למרחב המוגן</p>
+                </div>
+
+                <div class="locations-container">
+                    <h3>אזורי התרעה (<span id="locations-count">0</span>)</h3>
+                    <!-- Select2 Dropdown -->
+                    <div class="select-wrapper">
+                        <select id="city-select" class="city-select" style="width: 100%;">
+                            <option></option>
+                        </select>
+                    </div>
+
+                    <!-- Expander for List -->
+                    <details class="locations-expander">
+                        <summary>הצג רשימת ערים מלאה</summary>
+                        <ul class="locations-list" id="locations-list">
+                            <!-- Populated by JS -->
+                        </ul>
+                </div>
+            </div>
+
+            <!-- Settings & History Widgets -->
+            <div class="settings-panel">
+                <!-- Voice Indicator -->
+                <div class="setting-item glass-panel-light">
+                    <div class="setting-info">
+                        <strong>חיווי קולי (עברית)</strong>
+                        <span class="setting-desc">הקראה של שמות היישובים</span>
+                    </div>
+                    <label class="custom-checkbox">
+                        <input type="checkbox" id="voice-toggle">
+                        <span class="checkmark"></span>
+                    </label>
+                </div>
+
+                <!-- Sound Alert -->
+                <div class="setting-item glass-panel-light">
+                    <div class="setting-info">
+                        <strong>השמע צליל התרעה</strong>
+                        <div class="sound-controls">
+                            <button id="test-sound-btn" class="test-btn">
+                                <span class="play-icon">▶</span> בדיקה
+                            </button>
+                            <select id="sound-select" class="styled-select">
+                                <option value="bell">פעמון</option>
+                                <option value="siren">אזעקה</option>
+                            </select>
+                        </div>
+                    </div>
+                    <label class="custom-checkbox">
+                        <input type="checkbox" id="sound-toggle">
+                        <span class="checkmark"></span>
+                    </label>
+                </div>
+
+                <!-- Desktop Notifications -->
+                <div class="setting-item glass-panel-light">
+                    <div class="setting-info">
+                        <strong>התרעות שולחן עבודה</strong>
+                        <span class="setting-desc">הצגת התרעות בשולחן העבודה, או בגלישה בכרטיסיות אחרות</span>
+                    </div>
+                    <label class="custom-checkbox">
+                        <input type="checkbox" id="desktop-toggle">
+                        <span class="checkmark"></span>
+                    </label>
+                </div>
+
+                <!-- 24 Hours History Container -->
+                <div class="history-container">
+                    <div class="history-header">
+                        <a href="/archive" class="archive-link">לארכיון המלא</a>
+                        <strong>התרעות ב-24 שעות האחרונות</strong>
+                    </div>
+                    <div class="history-content" id="history-content">
+                        טוען היסטוריה...
+                    </div>
+                </div>
+            </div>
+
+            <footer class="sidebar-footer">
+                <p>עודכן לאחרונה: <span id="last-updated">--:--</span></p>
+            </footer>
+    </aside>
+
+    <!-- Main Map Area -->
+    <main class="map-area">
+        <div id="map" class="map-container"></div>
+        <!-- Glass Overlay for Branding -->
+        <div class="map-overlay glass-panel-light">
+            <div class="overlay-brand">מפת התרעות אונליין</div>
+        </div>
+    </main>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<!-- Leaflet JS -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<!-- Custom Script -->
+<script src="/static/script.js"></script>
+{% endblock %}

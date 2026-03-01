@@ -21,8 +21,20 @@ body {
     background-color: var(--bg-dark);
     color: var(--text-primary);
     font-family: var(--font-body);
+    display: flex;
+    flex-direction: column;
     height: 100vh;
     overflow: hidden;
+    /* Prevent body scroll during map interactions */
+}
+
+/* Wrapper for Subpages so they can still scroll naturally */
+.main-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    min-height: 0;
 }
 
 /* Typography */
@@ -50,11 +62,64 @@ h3 {
     margin-bottom: 1rem;
 }
 
+/* Global Header (Navbar) */
+.site-header {
+    background: rgba(15, 17, 21, 0.95);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--border-glass);
+    padding: 1rem 2rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    z-index: 1002;
+    flex-shrink: 0;
+}
+
+.header-logo a {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    text-decoration: none;
+    color: var(--text-primary);
+}
+
+.header-logo .logo-icon {
+    font-size: 1.5rem;
+}
+
+.header-logo .logo-text {
+    font-size: 1.25rem;
+    font-weight: 800;
+    font-family: var(--font-heading);
+}
+
+.header-nav {
+    display: flex;
+    gap: 2rem;
+}
+
+.header-nav a {
+    color: var(--text-secondary);
+    text-decoration: none;
+    font-size: 0.95rem;
+    font-weight: 500;
+    transition: color 0.3s ease;
+}
+
+.header-nav a:hover,
+.header-nav a.active {
+    color: var(--accent-color);
+    text-shadow: 0 0 10px rgba(255, 59, 59, 0.4);
+}
+
 /* Layout */
 .dashboard-container {
     display: flex;
-    height: 100vh;
+    flex: 1;
     width: 100vw;
+    overflow: hidden;
+    min-height: 0;
+    /* Crucial for map sizing inside flex-columns */
 }
 
 /* Sidebar */
@@ -72,22 +137,27 @@ h3 {
 }
 
 .sidebar-header {
-    padding: 2rem;
+    padding: 1rem 1.5rem;
     border-bottom: 1px solid var(--border-glass);
+}
+
+.sidebar-header h1 {
+    font-size: 1.6rem;
+    margin-bottom: 0.2rem;
 }
 
 .subtitle {
     color: var(--text-secondary);
-    font-size: 0.9rem;
-    margin-bottom: 1rem;
+    font-size: 0.85rem;
+    margin-bottom: 0.5rem;
 }
 
 .status-indicator {
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    font-size: 0.85rem;
-    padding: 0.5rem 1rem;
+    font-size: 0.8rem;
+    padding: 0.3rem 0.8rem;
     background: rgba(0, 0, 0, 0.3);
     border-radius: 20px;
     width: fit-content;
@@ -122,7 +192,9 @@ h3 {
 .alert-content {
     flex: 1;
     overflow-y: auto;
-    padding: 2rem;
+    padding: 1rem 1.5rem;
+    padding-bottom: 50px;
+    /* Space for absolute footer */
     position: relative;
 }
 
@@ -406,6 +478,218 @@ h3 {
     color: var(--accent-color) !important;
 }
 
+/* --- Settings & History Widgets --- */
+.settings-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    margin-top: 1rem;
+}
+
+.setting-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.8rem 1rem;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid var(--border-glass);
+}
+
+.setting-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+}
+
+.setting-info strong {
+    font-size: 1.1rem;
+    color: var(--text-primary);
+    font-weight: 600;
+}
+
+.setting-desc {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+
+/* Custom RTL Checkbox matching screenshot */
+.custom-checkbox {
+    display: block;
+    position: relative;
+    padding-left: 30px;
+    /* Checkbox geometry on the left for RTL layout */
+    cursor: pointer;
+    font-size: 22px;
+    user-select: none;
+    margin-right: 1rem;
+}
+
+.custom-checkbox input {
+    position: absolute;
+    opacity: 0;
+    cursor: pointer;
+    height: 0;
+    width: 0;
+}
+
+.checkmark {
+    position: absolute;
+    top: -12px;
+    left: 0;
+    height: 20px;
+    width: 20px;
+    background-color: transparent;
+    border: 2px solid var(--text-secondary);
+    border-radius: 4px;
+    transition: all 0.2s;
+}
+
+.custom-checkbox:hover input~.checkmark {
+    border-color: var(--text-primary);
+}
+
+/* The screenshot uses a white filled checkbox when active */
+.custom-checkbox input:checked~.checkmark {
+    background-color: var(--text-primary);
+    border-color: var(--text-primary);
+}
+
+.checkmark:after {
+    content: "";
+    position: absolute;
+    display: none;
+}
+
+.custom-checkbox input:checked~.checkmark:after {
+    display: block;
+}
+
+/* The checkmark symbol */
+.custom-checkbox .checkmark:after {
+    left: 6px;
+    top: 2px;
+    width: 4px;
+    height: 10px;
+    border: solid #333;
+    border-width: 0 2px 2px 0;
+    transform: rotate(45deg);
+}
+
+/* Sound Controls */
+.sound-controls {
+    display: flex;
+    gap: 0.8rem;
+    align-items: center;
+    margin-top: 0.5rem;
+}
+
+.styled-select {
+    background: transparent;
+    color: var(--text-secondary);
+    border: 1px solid var(--border-glass);
+    padding: 0.3rem 0.8rem;
+    border-radius: 6px;
+    font-family: inherit;
+    font-size: 0.9rem;
+    outline: none;
+}
+
+.styled-select option {
+    background: var(--bg-color);
+}
+
+.test-btn {
+    background: #c32222;
+    /* Specific dark red from screenshot */
+    color: white;
+    border: none;
+    padding: 0.4rem 1rem;
+    border-radius: 4px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    flex-direction: row-reverse;
+    /* Reverses icon so arrow points correctly in RTL */
+    gap: 0.4rem;
+    font-family: inherit;
+    font-size: 0.95rem;
+    transition: background 0.3s;
+}
+
+.test-btn:hover {
+    background: #e62e2e;
+}
+
+.play-icon {
+    font-size: 0.7rem;
+}
+
+/* History 24 Hours Container */
+.history-container {
+    background: rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(10px);
+    border: 1px solid var(--border-glass);
+    border-radius: 8px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    margin-top: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+.history-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.8rem 1rem;
+    background: rgba(255, 255, 255, 0.05);
+    border-bottom: 1px solid var(--border-glass);
+    color: var(--text-primary);
+}
+
+.history-header strong {
+    font-size: 1.05rem;
+    font-weight: bold;
+}
+
+.archive-link {
+    color: var(--accent-color);
+    text-decoration: underline;
+    font-size: 0.85rem;
+    font-weight: bold;
+    transition: color 0.2s;
+}
+
+.archive-link:hover {
+    color: #ff6b6b;
+}
+
+.history-content {
+    background: transparent;
+    color: var(--text-primary);
+    padding: 0.8rem 1rem;
+    font-size: 0.95rem;
+    max-height: 200px;
+    overflow-y: auto;
+    direction: rtl;
+    line-height: 1.5;
+}
+
+/* Custom subtle scrollbar for history content inside white box */
+.history-content::-webkit-scrollbar {
+    width: 4px;
+}
+
+.history-content::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.history-content::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 10px;
+}
+
 .sidebar-footer {
     padding: 1rem 2rem;
     border-top: 1px solid var(--border-glass);
@@ -422,8 +706,11 @@ h3 {
 }
 
 .map-container {
-    width: 100%;
-    height: 100%;
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
 }
 
 .map-overlay {
@@ -523,4 +810,81 @@ h3 {
     background-color: var(--bg-panel) !important;
     color: var(--text-primary) !important;
     border-color: var(--border-glass) !important;
+}
+
+/* --- New Subpages & Footer Styles --- */
+
+/* Page Content Container for Text Subpages */
+.page-container {
+    max-width: 900px;
+    margin: 3rem auto;
+    padding: 3rem;
+    background: rgba(15, 17, 21, 0.6);
+    backdrop-filter: blur(15px);
+    border: 1px solid var(--border-glass);
+    border-radius: 20px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    flex: 1;
+    /* Pushes footer down */
+}
+
+.page-container h1 {
+    color: var(--accent-color);
+    margin-bottom: 2rem;
+    font-size: 2.5rem;
+    text-shadow: 0 0 15px var(--accent-glow);
+    text-align: center;
+}
+
+.page-container p {
+    color: var(--text-secondary);
+    line-height: 1.8;
+    margin-bottom: 1.2rem;
+    font-size: 1.05rem;
+}
+
+/* Sleek Global Footer - Fixed & Compact */
+.site-footer {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    background: rgba(15, 17, 21, 0.9);
+    backdrop-filter: blur(8px);
+    border-top: 1px solid var(--border-glass);
+    padding: 0.4rem 1rem;
+    z-index: 1001;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.site-footer .footer-nav {
+    display: flex;
+    justify-content: center;
+    gap: 1.2rem;
+    flex-wrap: wrap;
+}
+
+.site-footer .footer-nav a {
+    color: var(--text-secondary);
+    text-decoration: none;
+    font-size: 0.8rem;
+    transition: all 0.3s ease;
+}
+
+.site-footer .footer-nav a:hover {
+    color: var(--accent-color);
+    text-shadow: 0 0 10px rgba(255, 59, 59, 0.4);
+}
+
+.footer-copyright {
+    color: rgba(255, 255, 255, 0.4);
+    font-size: 0.75rem;
+    font-family: var(--font-heading);
+}
+
+/* Ensure leaflet controls are above the footer */
+.leaflet-bottom {
+    bottom: 35px !important;
 }

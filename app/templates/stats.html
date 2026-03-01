@@ -1,0 +1,217 @@
+{% extends "base.html" %}
+
+{% block title %}סטטיסטיקה - Rockets & Missles Alerts{% endblock %}
+
+{% block content %}
+<style>
+    /* Specific styles for the stats page */
+    .filter-tabs {
+        display: flex;
+        justify-content: center;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        margin-bottom: 2rem;
+    }
+
+    .filter-btn {
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid var(--border-glass);
+        color: var(--text-secondary);
+        padding: 0.6rem 1.2rem;
+        border-radius: 20px;
+        cursor: pointer;
+        font-family: var(--font-body);
+        font-size: 0.95rem;
+        transition: all 0.3s ease;
+    }
+
+    .filter-btn:hover {
+        background: rgba(255, 255, 255, 0.1);
+        color: var(--text-primary);
+    }
+
+    .filter-btn.active {
+        background: var(--accent-color);
+        color: white;
+        border-color: var(--accent-color);
+        box-shadow: 0 0 15px rgba(255, 59, 59, 0.4);
+    }
+
+    .stats-table-container {
+        background: rgba(0, 0, 0, 0.3);
+        border: 1px solid var(--border-glass);
+        border-radius: 12px;
+        overflow: hidden;
+    }
+
+    .stats-table {
+        width: 100%;
+        border-collapse: collapse;
+        text-align: right;
+        direction: rtl;
+    }
+
+    .stats-table th,
+    .stats-table td {
+        padding: 1rem 1.5rem;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .stats-table th {
+        background: rgba(255, 255, 255, 0.05);
+        color: var(--text-secondary);
+        font-weight: 600;
+        font-size: 0.9rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .stats-table tr:last-child td {
+        border-bottom: none;
+    }
+
+    .stats-table tbody tr {
+        transition: background 0.2s;
+    }
+
+    .stats-table tbody tr:hover {
+        background: rgba(255, 255, 255, 0.05);
+    }
+
+    .city-name {
+        font-size: 1.1rem;
+        color: var(--text-primary);
+        font-weight: bold;
+    }
+
+    .alert-count {
+        font-size: 1.2rem;
+        color: var(--accent-color);
+        font-weight: bold;
+        font-family: monospace;
+    }
+
+    .loading-spinner {
+        text-align: center;
+        padding: 3rem;
+        color: var(--text-secondary);
+    }
+
+    .empty-state {
+        text-align: center;
+        padding: 3rem;
+        color: var(--safe-color);
+        font-size: 1.2rem;
+    }
+</style>
+
+<div class="page-container glass-panel">
+    <header class="page-header" style="text-align: center; margin-bottom: 2rem;">
+        <h1 style="color: #ff3b3b; font-size: 2.5rem; text-shadow: 0 0 10px rgba(255, 59, 59, 0.3);">סטטיסטיקות התרעות
+        </h1>
+        <p class="subtitle" style="font-size: 1.2rem; color: var(--text-secondary);">ניתוח התרעות לפי ערים וזמנים</p>
+    </header>
+
+    <div class="page-content" style="max-width: 900px; margin: 0 auto;">
+
+        <!-- Filter UI -->
+        <div class="filter-tabs">
+            <button class="filter-btn active" data-timeframe="24h">24 שעות אחרונות</button>
+            <button class="filter-btn" data-timeframe="1w">שבוע אחרון</button>
+            <button class="filter-btn" data-timeframe="1m">חודש אחרון</button>
+            <button class="filter-btn" data-timeframe="6m">חצי שנה</button>
+            <button class="filter-btn" data-timeframe="1y">שנה</button>
+            <button class="filter-btn" data-timeframe="all">כל הזמנים</button>
+        </div>
+
+        <!-- Stats Table -->
+        <div class="stats-table-container">
+            <table class="stats-table">
+                <thead>
+                    <tr>
+                        <th style="width: 10%;">דירוג</th>
+                        <th style="width: 70%;">אזור / יישוב</th>
+                        <th style="width: 20%;">מספר התרעות</th>
+                    </tr>
+                </thead>
+                <tbody id="stats-body">
+                    <!-- Populated by JS -->
+                </tbody>
+            </table>
+        </div>
+
+        <div style="margin-top: 3rem; text-align: center;">
+            <a href="/" class="btn"
+                style="display: inline-block; padding: 0.8rem 2rem; background: rgba(255,255,255,0.1); color: white; border: 1px solid var(--border-glass); text-decoration: none; border-radius: 8px; font-weight: bold; transition: background 0.3s;">חזרה
+                למערכת המרכזית</a>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const filterBtns = document.querySelectorAll('.filter-btn');
+        const statsBody = document.getElementById('stats-body');
+
+        // Initial fetch
+        fetchStats('24h');
+
+        // Add click listeners to buttons
+        filterBtns.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                // Update active styling
+                filterBtns.forEach(b => b.classList.remove('active'));
+                e.target.classList.add('active');
+
+                // Fetch new data
+                const timeframe = e.target.getAttribute('data-timeframe');
+                fetchStats(timeframe);
+            });
+        });
+
+        async function fetchStats(timeframe) {
+            // Show loading state
+            statsBody.innerHTML = '<tr><td colspan="3"><div class="loading-spinner">טוען נתונים...</div></td></tr>';
+
+            try {
+                const res = await fetch(`/api/alerts/statistics?timeframe=${timeframe}`);
+                if (!res.ok) throw new Error('Network response was not ok');
+                const data = await res.json();
+
+                renderTable(data.data);
+
+            } catch (error) {
+                console.error('Error fetching stats:', error);
+                statsBody.innerHTML = '<tr><td colspan="3"><div style="text-align:center; padding: 2rem; color: #ff3b3b;">שגיאה בטעינת הנתונים. נא לנסות שנית.</div></td></tr>';
+            }
+        }
+
+        function renderTable(stats) {
+            statsBody.innerHTML = '';
+
+            if (!stats || stats.length === 0) {
+                statsBody.innerHTML = '<tr><td colspan="3"><div class="empty-state">אין התרעות בטווח הזמן שנבחר. שקט ושלווה!</div></td></tr>';
+                return;
+            }
+
+            // Custom CSS for WOW 2026 badges on the numbers
+            stats.forEach((item, index) => {
+                const tr = document.createElement('tr');
+
+                // Add medal emojis for top 3
+                let rankText = `#${index + 1}`;
+                if (index === 0) rankText = `🥇 #${index + 1}`;
+                if (index === 1) rankText = `🥈 #${index + 1}`;
+                if (index === 2) rankText = `🥉 #${index + 1}`;
+
+                tr.innerHTML = `
+                    <td style="color: var(--text-secondary); font-weight: bold;">${rankText}</td>
+                    <td class="city-name">${item.city}</td>
+                    <td class="alert-count">${item.count.toLocaleString()}</td>
+                `;
+                statsBody.appendChild(tr);
+            });
+        }
+    });
+</script>
+{% endblock %}
