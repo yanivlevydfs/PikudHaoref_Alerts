@@ -46,7 +46,9 @@ async def get_alerts(mock: bool = False):
         return {"message": "No active alerts at the moment.", "data": None}
         
     if isinstance(alerts_data, dict) and "error" in alerts_data:
-        raise HTTPException(status_code=500, detail=alerts_data["error"])
+        error_msg = alerts_data["error"]
+        logger.error(f"API Error on /api/alerts: {error_msg}")
+        raise HTTPException(status_code=500, detail=error_msg)
         
     return {"message": "Active alerts found.", "data": alerts_data}
 

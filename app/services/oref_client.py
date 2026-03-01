@@ -11,15 +11,21 @@ def fetch_active_alerts():
     """
     url = "https://www.oref.org.il/WarningMessages/alert/alerts.json"
     
-    # Headers exactly as required by Oref
+    # Headers exactly as required by Oref, plus a browser-like User-Agent
     headers = {
         'Referer': 'https://www.oref.org.il/',
-        'X-Requested-With': 'XMLHttpRequest'
+        'X-Requested-With': 'XMLHttpRequest',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
     }
     
     try:
         # We add timeout just in case it hangs
         response = requests.get(url, headers=headers, timeout=10)
+        
+        if response.status_code != 200:
+            logger.error(f"Oref API returned status code {response.status_code}")
+            return {"error": f"Oref API error: {response.status_code}"}
+            
         response.raise_for_status()
         
         # Oref API returns empty content if there are no active alerts
