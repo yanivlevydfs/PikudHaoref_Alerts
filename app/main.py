@@ -16,7 +16,10 @@ def scheduled_job():
     logger.info("Executing scheduled task: fetching active alerts...")
     alerts = fetch_active_alerts()
     if alerts:
-        logger.info(f"Scheduled fetch found valid response: {alerts}")
+        active_cities = alerts.get("data", [])
+        city_count = len(active_cities)
+        title = alerts.get("title", 'Unknown Alert')
+        logger.info(f"Scheduled fetch found valid response: '{title}' affecting {city_count} locations.")
     else:
         logger.info("Scheduled fetch found no active alerts.")
 
