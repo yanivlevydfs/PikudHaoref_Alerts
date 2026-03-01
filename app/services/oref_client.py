@@ -9,14 +9,16 @@ logger = logging.getLogger(__name__)
 # Global session to persist cookies and connection
 session = requests.Session()
 
-# List of free Israeli Proxies (HTTP)
+# List of free Israeli Proxies (HTTP and SOCKS5)
 # Note: Free proxies are unreliable; in a production app, use a paid proxy service.
 ISRAELI_PROXIES = [
-    "129.159.159.78:3128",
-    "51.16.6.90:3128",
-    "185.241.5.57:3128",
-    "51.16.49.113:189",
-    "51.85.49.118:8823"
+    {"url": "129.159.159.78:3128", "type": "http"},
+    {"url": "51.16.6.90:3128", "type": "http"},
+    {"url": "185.241.5.57:3128", "type": "http"},
+    {"url": "51.16.49.113:189", "type": "http"},
+    {"url": "51.85.49.118:8823", "type": "http"},
+    {"url": "149.88.66.150:7890", "type": "socks5"},
+    {"url": "51.16.56.189:8001", "type": "socks5"}
 ]
 
 def fetch_active_alerts():
@@ -44,18 +46,28 @@ def fetch_active_alerts():
         'Sec-Fetch-Site': 'same-origin'
     }
 
-    def attempt_request(proxy_url=None):
-        proxies = {"http": f"http://{proxy_url}", "https": f"http://{proxy_url}"} if proxy_url else None
+    def attempt_request(proxy_config=None):
+        if proxy_config:
+            p_url = proxy_config["url"]
+            p_type = proxy_config["type"]
+            if p_type == "socks5":
+                proxy_str = f"socks5h://{p_url}"
+            else:
+                proxy_str = f"http://{p_url}"
+            proxies = {"http": proxy_str, "https": proxy_str}
+        else:
+            proxies = None
+            
         try:
             if not session.cookies:
-                logger.debug(f"Pre-flight request (Proxy: {proxy_url or 'Direct'})...")
+                logger.debug(f"Pre-flight request (Proxy: {proxy_config['url'] if proxy_config else 'Direct'})...")
                 session.get(home_url, headers={'User-Agent': headers['User-Agent']}, timeout=10, proxies=proxies)
                 time.sleep(1)
             
             response = session.get(url, headers=headers, timeout=10, proxies=proxies)
             return response
         except Exception as e:
-            logger.warning(f"Request failed with proxy {proxy_url or 'Direct'}: {e}")
+            logger.warning(f"Request failed with proxy {proxy_config['url'] if proxy_config else 'Direct'}: {e}")
             return None
 
     # Step 1: Try Direct first (might have been a temporary glitch, but usually fails on Railway)
@@ -74,14 +86,14 @@ def fetch_active_alerts():
         
         for proxy in shuffled_proxies:
             session.cookies.clear() # Fresh cookies for each proxy attempt
-            logger.info(f"Trying Israeli proxy: {proxy}")
+            logger.info(f"Trying Israeli {proxy['type']} proxy: {proxy['url']}")
             response = attempt_request(proxy)
             
             if response and response.status_code == 200:
-                logger.info(f"Successfully fetched alerts via proxy: {proxy}")
+                logger.info(f"Successfully fetched alerts via proxy: {proxy['url']}")
                 break
             elif response:
-                logger.warning(f"Proxy {proxy} returned status {response.status_code}")
+                logger.warning(f"Proxy {proxy['url']} returned status {response.status_code}")
     elif response and response.status_code == 403 and not is_railway:
         logger.warning("Direct request blocked (403) on Localhost. Proxies are disabled for dev.")
 
