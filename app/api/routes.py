@@ -13,10 +13,31 @@ logger = logging.getLogger("pikudhaoref_app.routes")
     description="Fetches the current active alerts from the Rockets & Missles alerts API. Responses are cached.",
     tags=["Alerts"]
 )
-async def get_alerts():
+async def get_alerts(mock: bool = False):
     """
     Retrieves active alerts instantaneously from global memory state.
+    If 'mock=true' is passed, simulates a massive attack for UI testing.
     """
+    if mock:
+        return {
+            "message": "MOCK MODE ACTIVE",
+            "data": {
+                "id": "123456789",
+                "cat": "1",
+                "title": "ירי רקטות וטילים",
+                "data": [
+                    "תל אביב - יפו",
+                    "רמת גן",
+                    "גבעתיים",
+                    "חיפה - כרמל",
+                    "טירת כרמל",
+                    "ירושלים - מרכז",
+                    "שדרות"
+                ],
+                "desc": "היכנסו למרחב המוגן, שהו בו 10 דקות"
+            }
+        }
+
     alerts_data = global_alert_state.get()
     
     if alerts_data is None:

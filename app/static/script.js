@@ -340,7 +340,11 @@ function panToCity(cityName) {
 async function fetchAlerts() {
     setStatus('fetching', 'בודק מול השרת...');
     try {
-        const res = await fetch('/api/alerts');
+        const urlParams = new URLSearchParams(window.location.search);
+        const isMock = urlParams.get('mock') === 'true';
+        const endpoint = isMock ? '/api/alerts?mock=true' : '/api/alerts';
+
+        const res = await fetch(endpoint);
         if (!res.ok) throw new Error("HTTP " + res.status);
         const data = await res.json();
         updateUI(data);

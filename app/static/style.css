@@ -412,6 +412,8 @@ h3 {
 /* Select2 Dark Glassmorphism Theme Overrides */
 .select-wrapper {
     margin-top: 15px;
+    position: relative;
+    z-index: 9999;
 }
 
 .select2-container--default .select2-selection--single {
