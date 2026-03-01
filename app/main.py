@@ -115,6 +115,50 @@ async def serve_robots():
     """
     return FileResponse(os.path.join(static_dir, "robots.txt"))
 
+@app.get("/sw.js", include_in_schema=False)
+async def serve_sw():
+    """
+    Serves the Service Worker directly from the root.
+    """
+    return FileResponse(os.path.join(static_dir, "sw.js"))
+
+@app.get("/favicon.ico", include_in_schema=False)
+async def serve_favicon():
+    """
+    Serves the icon.png as favicon.ico for legacy support.
+    """
+    return FileResponse(os.path.join(static_dir, "icon.png"))
+
+@app.get("/sitemap.xml", include_in_schema=False)
+async def serve_sitemap_xml():
+    """
+    Generates and serves a proper XML sitemap for search engines.
+    """
+    from fastapi.responses import Response
+    from datetime import datetime
+    
+    # In a real app, you'd define these dynamically
+    base_url = "https://alerts.up.railway.app"
+    pages = ["", "about", "contact", "terms", "accessibility", "privacy", "sitemap", "stats", "archive"]
+    lastmod = datetime.now().strftime("%Y-%m-%d")
+    
+    xml_content = '<?xml version="1.0" encoding="UTF-8"?>\n'
+    xml_content += '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+    
+    for page in pages:
+        url = f"{base_url}/{page}" if page else f"{base_url}/"
+        xml_content += f'  <url>\n    <loc>{url}</loc>\n    <lastmod>{lastmod}</lastmod>\n    <changefreq>daily</changefreq>\n    <priority>{"1.0" if not page else "0.8"}</priority>\n  </url>\n'
+    
+    xml_content += '</urlset>'
+    return Response(content=xml_content, media_type="application/xml")
+
+@app.get("/manifest.json", include_in_schema=False)
+async def serve_manifest():
+    """
+    Serves the PWA manifest directly from the root.
+    """
+    return FileResponse(os.path.join(static_dir, "manifest.json"))
+
 @app.get("/{page}", include_in_schema=False)
 async def serve_page(request: Request, page: str):
     """

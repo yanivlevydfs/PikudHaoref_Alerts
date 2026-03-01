@@ -16,6 +16,46 @@
     <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
     <!-- Custom CSS -->
     <link rel="stylesheet" href="/static/style.css">
+    <!-- Favicon & PWA Icons -->
+    <link rel="icon" type="image/png" href="/static/icon.png">
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#ff3b3b">
+    <meta name="description"
+        content="מערכת התרעות בזמן אמת עבור ירי רקטות וטילים בישראל. הישארו מעודכנים עם נתוני פיקוד העורף, מפות אינטראקטיביות וסטטיסטיקה.">
+    <meta name="keywords" content="צבע אדום, התרעות, פיקוד העורף, רקטות, טילים, ביטחון, ישראל, מפת התרעות">
+    <meta name="author" content="Yaniv Levy">
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://alerts.up.railway.app/">
+    <meta property="og:title" content="התרעות ביטחוניות - מערכת התרעות בזמן אמת">
+    <meta property="og:description" content="מערכת התרעות בזמן אמת עבור ירי רקטות וטילים בישראל.">
+    <meta property="og:image" content="/static/icon.png">
+
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image">
+    <meta property="twitter:url" content="https://alerts.up.railway.app/">
+    <meta property="twitter:title" content="התרעות ביטחוניות - מערכת התרעות בזמן אמת">
+    <meta property="twitter:description" content="מערכת התרעות בזמן אמת עבור ירי רקטות וטילים בישראל.">
+    <meta property="twitter:image" content="/static/icon.png">
+
+    <!-- JSON-LD Structured Data -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebApplication",
+      "name": "התרעות ביטחוניות",
+      "url": "https://alerts.up.railway.app/",
+      "description": "Real-time security alerts system for Israel",
+      "applicationCategory": "SafetyApplication",
+      "operatingSystem": "All",
+      "author": {
+        "@type": "Person",
+        "name": "Yaniv Levy"
+      }
+    }
+    </script>
+
     {% block extra_head %}{% endblock %}
 </head>
 
@@ -92,6 +132,15 @@
         // Initialize and tick every second
         setInterval(updateGlobalClock, 1000);
         updateGlobalClock();
+
+        // PWA Service Worker Registration
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js')
+                    .then(reg => console.log('Service Worker registered!', reg))
+                    .catch(err => console.log('Service Worker registration failed: ', err));
+            });
+        }
     </script>
 
     {% block scripts %}

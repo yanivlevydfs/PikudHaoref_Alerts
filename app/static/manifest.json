@@ -1,0 +1,17 @@
+{
+    "name": "התרעות ביטחוניות",
+    "short_name": "התרעות",
+    "description": "מערכת התרעות בזמן אמת עבור ירי רקטות וטילים",
+    "start_url": "/",
+    "display": "standalone",
+    "background_color": "#0b0e14",
+    "theme_color": "#ff3b3b",
+    "icons": [
+        {
+            "src": "/static/icon.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "any"
+        }
+    ]
+}
