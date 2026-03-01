@@ -4,38 +4,52 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+# Global session to persist cookies and connection
+session = requests.Session()
+
 def fetch_active_alerts():
     """
     Fetches the active alerts from the Oref API.
-    Returns a dictionary with the alerts data, or None if there are no active alerts.
+    Uses more extensive headers and a persistent session to bypass 403 blocks.
     """
     url = "https://www.oref.org.il/WarningMessages/alert/alerts.json"
+    home_url = "https://www.oref.org.il/"
     
-    # Headers exactly as required by Oref, plus a browser-like User-Agent
     headers = {
-        'Referer': 'https://www.oref.org.il/',
-        'X-Requested-With': 'XMLHttpRequest',
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
+        'Accept': 'application/json, text/javascript, */*; q=0.01',
+        'Accept-Language': 'he-IL,he;q=0.9,en-US;q=0.8,en;q=0.7',
+        'Connection': 'keep-alive',
+        'Content-Type': 'application/json;charset=utf-8',
+        'Referer': home_url,
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+        'X-Requested-With': 'XMLHttpRequest'
     }
     
     try:
-        # We add timeout just in case it hangs
-        response = requests.get(url, headers=headers, timeout=10)
+        # Pre-flight: Visit homepage if we don't have cookies yet
+        if not session.cookies:
+            logger.info("Performing pre-flight request to Oref homepage for cookies...")
+            session.get(home_url, headers={'User-Agent': headers['User-Agent']}, timeout=10)
         
+        # Main request
+        response = session.get(url, headers=headers, timeout=10)
+        
+        if response.status_code == 403:
+            logger.error("Oref API returned 403 Forbidden. Attempting to rotate session...")
+            session.cookies.clear()
+            return {"error": "Oref 403 Access Denied - Possible IP Block"}
+            
         if response.status_code != 200:
             logger.error(f"Oref API returned status code {response.status_code}")
             return {"error": f"Oref API error: {response.status_code}"}
             
         response.raise_for_status()
         
-        # Oref API returns empty content if there are no active alerts
         content = response.content.decode('utf-8-sig', errors='ignore').strip()
         
-        # If there are no real alerts, return None so the UI can show the "No Alerts" screen
         if not content:
             return None
             
-        # Try to parse as JSON
         try:
             data = json.loads(content)
             return data
