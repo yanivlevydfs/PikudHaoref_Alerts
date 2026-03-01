@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pikud Haoref Active Alerts</title>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Inter:wght@400;600&display=swap" rel="stylesheet">
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="dashboard-container">
+        <!-- Sidebar Panel -->
+        <aside class="sidebar glass-panel">
+            <header class="sidebar-header">
+                <h1>פיקוד העורף</h1>
+                <p class="subtitle">מערכת התרעות בזמן אמת</p>
+                <div class="status-indicator">
+                    <span class="pulse-dot" id="status-dot"></span>
+                    <span id="status-text">מתחבר...</span>
+                </div>
+            </header>
+
+            <div class="alert-content" id="alert-content">
+                <div class="no-alerts-screen active" id="no-alerts">
+                    <div class="shield-icon">🛡️</div>
+                    <h2>שגרה</h2>
+                    <p>אין התרעות פעילות כרגע ברחבי הארץ.</p>
+                </div>
+
+                <div class="active-alerts-screen" id="active-alerts">
+                    <div class="alert-header">
+                        <h2 id="alert-title" class="critical-text">ירי רקטות וטילים</h2>
+                        <p id="alert-desc">היכנסו למרחב המוגן</p>
+                    </div>
+                    
+                    <div class="locations-container">
+                        <h3>אזורי התרעה (<span id="locations-count">0</span>)</h3>
+                        <ul class="locations-list" id="locations-list">
+                            <!-- Populated by JS -->
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            
+            <footer class="sidebar-footer">
+                <p>עודכן לאחרונה: <span id="last-updated">--:--</span></p>
+            </footer>
+        </aside>
+
+        <!-- Main Map Area -->
+        <main class="map-area">
+            <div id="map" class="map-container"></div>
+            <!-- Glass Overlay for Branding -->
+            <div class="map-overlay glass-panel-light">
+                <div class="overlay-brand">מפת התרעות אונליין</div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <!-- Custom Script -->
+    <script src="/static/script.js"></script>
+</body>
+</html>
