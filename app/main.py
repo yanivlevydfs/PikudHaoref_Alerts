@@ -73,9 +73,26 @@ async def lifespan(app: FastAPI):
     scheduler.shutdown()
 
 app = FastAPI(
-    title="Rockets & Missles Alerts API",
-    description="A FastAPI wrapper around the official alerts API.",
-    version="1.0.0",
+    title="Pikud Haoref Alerts API (Unofficial)",
+    description="""
+    A robust, modern FastAPI wrapper around the official Israel Home Front Command (Oref) real-time alerts.
+    
+    ### Key Capabilities:
+    * **Real-time Monitoring**: High-frequency adaptive polling during attacks.
+    * **State Persistence**: Smart accumulation of cities throughout a barrage.
+    * **Proxy Resilience**: 24h sticky Israeli proxy rotation to bypass 403 blocks.
+    * **Alert History**: SQLite-backed tracking of all intercepted events.
+    * **RSS Support**: Standardized XML feed for downstream consumers.
+    """,
+    version="1.2.0",
+    contact={
+        "name": "Pikud Haoref API Support",
+        "url": "https://github.com/YanivLevy/PikudHaoref_Alerts",
+    },
+    license_info={
+        "name": "MIT License",
+        "url": "https://opensource.org/licenses/MIT",
+    },
     lifespan=lifespan
 )
 

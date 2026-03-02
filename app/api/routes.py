@@ -4,6 +4,8 @@ from app.services.alert_state import global_alert_state
 from app.db.database import get_recent_alerts, get_alert_statistics
 import logging
 
+from app.api.models import AlertsResponse, HistoryResponse, StatisticsResponse
+
 router = APIRouter()
 logger = logging.getLogger("pikudhaoref_app.routes")
 
@@ -11,7 +13,8 @@ logger = logging.getLogger("pikudhaoref_app.routes")
     "/api/alerts", 
     summary="Get Active Alerts", 
     description="Fetches the current active alerts from the Rockets & Missles alerts API. Responses are cached.",
-    tags=["Alerts"]
+    tags=["Alerts"],
+    response_model=AlertsResponse
 )
 async def get_alerts(mock: bool = False):
     """
@@ -54,7 +57,8 @@ async def get_alerts(mock: bool = False):
     "/api/alerts/history", 
     summary="Get Alert History (Last 24 Hours)", 
     description="Fetches alerts that occurred in the last 24 hours from the local SQLite database.",
-    tags=["Alerts"]
+    tags=["Alerts"],
+    response_model=HistoryResponse
 )
 async def get_alert_history(hours: int = 24):
     """
@@ -72,7 +76,8 @@ async def get_alert_history(hours: int = 24):
     "/api/alerts/statistics",
     summary="Get Alert Statistics By City",
     description="Fetches aggregated statistics of alerts per city based on a given timeframe.",
-    tags=["Statistics"]
+    tags=["Statistics"],
+    response_model=StatisticsResponse
 )
 async def get_statistics(timeframe: str = Query("24h", description="Options: 24h, 1w, 1m, 6m, 1y, all")):
     """
