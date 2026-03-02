@@ -19,6 +19,9 @@ class AlertState:
                 return
 
             # Case 2: Success! (Either active alerts or empty state)
+            # CRITICAL: We explicitly flip this back to True BEFORE processing data
+            if not self.is_online:
+                logger.info("System status recovered to ONLINE.")
             self.is_online = True
             
             # Normalize list responses to a single "bulk" object or None if empty
