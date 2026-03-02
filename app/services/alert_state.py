@@ -1,4 +1,7 @@
 import threading
+import logging
+
+logger = logging.getLogger(__name__)
 
 class AlertState:
     def __init__(self):

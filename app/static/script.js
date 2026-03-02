@@ -44,6 +44,8 @@ L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
 
 // State variables
 let currentAlertId = null;
+let currentCitiesHash = ""; // Track hash of cities to avoid redundant plotting
+let plottedCities = new Set(); // Track cities currently shown on map
 let markersLayer = L.layerGroup().addTo(map);
 
 // DOM Elements
@@ -144,60 +146,59 @@ function updateUI(data) {
         }
 
         markersLayer.clearLayers();
+        plottedCities.clear();
         citySelect.empty().trigger('change'); // Clear Dropdown
         locationsList.innerHTML = '';
         currentAlertId = null;
+        currentCitiesHash = "";
         return;
     }
 
     const alertData = data.data;
 
-    // Check if it's new data to avoid re-rendering layout/map if nothing changed
-    if (currentAlertId === alertData.id) {
-        if (data.is_online === false) {
-            setStatus('danger', 'מערכת לא זמינה');
-        } else {
-            setStatus('danger', 'מצב חירום פעיל');
-        }
-        return;
+    // Prevent duplicate processing if data hasn't changed
+    const citiesHash = (alertData.data || []).sort().join('|');
+    const isSameAttack = (currentAlertId === alertData.id && citiesHash === currentCitiesHash);
+
+    // Always hide offline banner if we got here
+    offlineBanner.style.display = 'none';
+
+    if (!isSameAttack) {
+        currentAlertId = alertData.id;
+        currentCitiesHash = citiesHash;
+
+        // UI Updates for New Attack
+        alertTitle.innerText = alertData.title || "התרעה פעילה!";
+        alertDesc.innerText = alertData.desc || "היכנסו למרחב מוגן.";
+        locationsCount.innerText = (alertData.data || []).length;
+
+        // Force-expand the locations scroll area
+        const expander = document.querySelector('.locations-expander');
+        if (expander) expander.setAttribute('open', ''); // Use setAttribute for safety
+
+        citySelect.empty();
+        citySelect.append(new Option('', '', false, false));
+        locationsList.innerHTML = '';
+
+        (alertData.data || []).forEach(city => {
+            const option = new Option(city, city, false, false);
+            citySelect.append(option);
+
+            const li = document.createElement('li');
+            li.className = 'location-item';
+            li.innerText = city;
+            li.addEventListener('click', () => panToCity(city));
+            locationsList.appendChild(li);
+        });
+        citySelect.trigger('change');
     }
 
-    currentAlertId = alertData.id;
-
-    // Update DOM texts
-    alertTitle.innerText = alertData.title || "התרעה פעילה!";
-    alertDesc.innerText = alertData.desc || "היכנסו למרחב מוגן.";
-    locationsCount.innerText = alertData.data.length;
-
-    // Populate Select2 Dropdown and List
-    citySelect.empty();
-    citySelect.append(new Option('', '', false, false)); // Empty option for placeholder
-    locationsList.innerHTML = '';
-
-    alertData.data.forEach(city => {
-        // Select2 Option
-        const option = new Option(city, city, false, false);
-        citySelect.append(option);
-
-        // List Item
-        const li = document.createElement('li');
-        li.className = 'location-item';
-        li.innerText = city;
-        li.addEventListener('click', () => {
-            panToCity(city);
-        });
-        locationsList.appendChild(li);
-    });
-    citySelect.trigger('change');
+    // Update status based on current response
+    if (data.is_online === false) setStatus('danger', 'מערכת לא זמינה');
+    else setStatus('danger', 'מצב חירום פעיל');
 
     noAlertsScreen.classList.remove('active');
     activeAlertsScreen.classList.add('active');
-
-    if (data.is_online === false) {
-        setStatus('danger', 'מערכת לא זמינה');
-    } else {
-        setStatus('danger', 'מצב חירום פעיל');
-    }
 
     // Trigger Geo-cording and Mapping
     plotCitiesOnMap(alertData.data);
@@ -221,154 +222,154 @@ function updateUI(data) {
     fetchHistory();
 }
 
-// Map Plotting Logic
+let isMappingInProgress = false;
+
+/**
+ * Geocodes city names and places markers.
+ * Optimized for large lists: Won't re-plot already existing markers.
+ */
 async function plotCitiesOnMap(cities) {
-    markersLayer.clearLayers(); // Clear old markers
-    const bounds = L.latLngBounds();
-    let plottedAtLeastOne = false;
-    const missingCities = [];
+    if (!cities || cities.length === 0) return;
+    if (isMappingInProgress) return; // Prevent concurrent loops fighting each other
+    isMappingInProgress = true;
 
-    console.log(`Processing map plots for ${cities.length} cities...`);
+    try {
+        const bounds = L.latLngBounds();
+        let hasValidBounds = false;
 
-    // 1. First Pass: Instantly render anything that is already cached!
-    cities.forEach(city => {
-        const geoData = geoCache[city];
-        if (geoData && geoData !== "NOT_FOUND" && geoData !== "NOT_FOUND_AGAIN") {
-            try {
-                // Render the GeoJSON Polygon or Point
-                const layer = L.geoJSON(geoData, {
-                    style: {
-                        color: "#ff0000",
-                        weight: 2,
-                        opacity: 1,
-                        fillColor: "#ff0000",
-                        fillOpacity: 0.3
-                    },
-                    pointToLayer: function (feature, latlng) {
-                        return L.circleMarker(latlng, {
-                            radius: 8,
-                            fillColor: "#ff0000",
-                            color: "#ffffff",
-                            weight: 1,
-                            opacity: 1,
-                            fillOpacity: 0.8
-                        });
-                    }
-                }).addTo(markersLayer);
-
-                layer.bindTooltip(city, { direction: 'center', className: 'custom-tooltip' });
-
-                const layerBounds = layer.getBounds();
-                if (layerBounds.isValid()) {
-                    bounds.extend(layerBounds);
-                    plottedAtLeastOne = true;
+        // 1. Clean up stale markers and calculate bounds for existing ones
+        const updatedCitiesSet = new Set(cities);
+        markersLayer.eachLayer(layer => {
+            if (layer._cityName && !updatedCitiesSet.has(layer._cityName)) {
+                markersLayer.removeLayer(layer);
+                plottedCities.delete(layer._cityName);
+            } else if (layer._cityName) {
+                // Robust bounds fitting for BOTH markers and polygons
+                let lb = null;
+                if (typeof layer.getBounds === 'function') {
+                    lb = layer.getBounds();
+                } else if (typeof layer.getLatLng === 'function') {
+                    const ll = layer.getLatLng();
+                    lb = L.latLngBounds(ll, ll);
                 }
-            } catch (layerErr) {
-                console.error(`Error rendering cached Layer for ${city}`, layerErr);
+
+                if (lb && lb.isValid()) {
+                    bounds.extend(lb);
+                    hasValidBounds = true;
+                }
             }
-        } else {
-            // Needs a fresh fetch or a retry if it failed previously
-            missingCities.push(city);
-        }
-    });
+        });
 
-    // Fit bounds instantly for what we have in cache
-    if (plottedAtLeastOne) {
-        map.fitBounds(bounds, { padding: [50, 50], maxZoom: 12 });
-    }
+        // 2. Queue missing cities
+        const citiesToProcess = cities.filter(city => !plottedCities.has(city));
 
-    // 2. Second Pass: Async fetch missing data gracefully without freezing map
-    if (missingCities.length > 0) {
-        console.log(`Fetching ${missingCities.length} uncached locations in background...`);
-        for (let i = 0; i < missingCities.length; i++) {
-            const city = missingCities[i];
+        for (let i = 0; i < citiesToProcess.length; i++) {
+            const city = citiesToProcess[i];
+            const geoData = geoCache[city];
 
-            // Aggressive string cleanup to get better Nominatim hit rates
-            let searchCity = city.split('-')[0].trim();
-            // Remove common street/neighborhood prefixes if they aren't part of the city name
-            searchCity = searchCity.replace(/^רחוב\s+/g, "")
-                .replace(/^שדרות\s+(?!(השביעית|הציונות|ירושלים))/g, "") // Keep "Sderot" as a city
-                .replace(/^פארק\s+/g, "")
-                .replace("אזור תעשייה", "")
-                .replace("איזור תעשייה", "")
-                .replace("פארק תעשיות", "")
-                .replace("בי\"ס", "")
-                .trim();
-            if (!searchCity) searchCity = city.split('-')[0].trim();
-
-            await new Promise(r => setTimeout(r, 1000)); // Respect openstreetmap ratelimits
-
-            try {
-                // Use addressdetails=1 to get class/type information for filtering
-                const baseUrl = "https://nominatim.openstreetmap.org/search?format=json&polygon_geojson=1&limit=1&countrycodes=il&accept-language=he&addressdetails=1";
-
-                let res = await fetch(`${baseUrl}&q=${encodeURIComponent(searchCity)}`, {
-                    headers: { 'User-Agent': 'PikudHaoref_Alerts_Webapp/1.1' }
-                });
-                let json = await res.json();
-
-                // If no result and multi-word (e.g. "דרומי אשקלון"), safely retry with just the last word ("אשקלון")
-                if (json.length === 0 && searchCity.split(' ').length > 1) {
-                    const lastWord = searchCity.split(' ').pop();
-                    await new Promise(r => setTimeout(r, 1000));
-                    res = await fetch(`${baseUrl}&q=${encodeURIComponent(lastWord)}`);
-                    json = await res.json();
-                }
-
-                let fetchedData = null;
-                if (json && json.length > 0) {
-                    const result = json[0];
-
-                    // CRITICAL FILTER: Only accept results that are settlements, cities, villages, or administrative areas.
-                    // Avoid 'highway', 'building', 'amenity', etc.
-                    const allowedClasses = ['place', 'boundary'];
-                    const forbiddenTypes = ['highway', 'street', 'road', 'footway', 'residential', 'service'];
-
-                    const isSettlement = allowedClasses.includes(result.class) && !forbiddenTypes.includes(result.type);
-
-                    if (isSettlement) {
-                        if (result.geojson) {
-                            fetchedData = result.geojson; // Valid Polygon
-                        } else if (result.lat && result.lon) {
-                            // Crucial Fallback: If OSM knows the coordinates but lacks polygon borders, build a GeoJSON Point manually!
-                            fetchedData = {
-                                type: "Point",
-                                coordinates: [parseFloat(result.lon), parseFloat(result.lat)]
-                            };
-                        }
-                    } else {
-                        console.warn(`[GEO-REJECT] Rejected ${city} as it identified as ${result.class}/${result.type}`);
-                    }
-                }
-
-                if (fetchedData) {
-                    geoCache[city] = fetchedData;
-                    console.log(`[GEO-SUCCESSAsync] Fetched shape/point for '${city}'`);
-
-                    // Live add to map
-                    const asyncLayer = L.geoJSON(fetchedData, {
+            if (geoData && geoData !== "NOT_FOUND" && geoData !== "NOT_FOUND_AGAIN") {
+                try {
+                    const layer = L.geoJSON(geoData, {
                         style: { color: "#ff0000", weight: 2, opacity: 1, fillColor: "#ff0000", fillOpacity: 0.3 },
                         pointToLayer: function (feature, latlng) {
                             return L.circleMarker(latlng, { radius: 8, fillColor: "#ff0000", color: "#ffffff", weight: 1, opacity: 1, fillOpacity: 0.8 });
                         }
                     }).addTo(markersLayer);
-                    asyncLayer.bindTooltip(city, { direction: 'center', className: 'custom-tooltip' });
 
-                    const lb = asyncLayer.getBounds();
-                    if (lb.isValid()) {
-                        bounds.extend(lb);
-                        map.fitBounds(bounds, { padding: [50, 50], maxZoom: 12 });
+                    layer._cityName = city;
+                    layer.bindTooltip(city, { direction: 'center', className: 'custom-tooltip' });
+                    plottedCities.add(city);
+
+                    const layerBounds = layer.getBounds();
+                    if (layerBounds.isValid()) {
+                        bounds.extend(layerBounds);
+                        hasValidBounds = true;
+                        if (plottedCities.size < 5) map.fitBounds(bounds, { padding: [50, 50], maxZoom: 12 });
                     }
-                } else {
-                    geoCache[city] = "NOT_FOUND_AGAIN";
-                    console.warn(`[GEO-MISS] Could not isolate coordinates for ${city}`);
+                } catch (err) {
+                    console.error(`Error plotting ${city}`, err);
                 }
-
-                localStorage.setItem('geoCache_v5', JSON.stringify(geoCache)); // Retain v5 key seamlessly
-            } catch (err) {
-                console.error(`[GEO-ERROR] Geocoding failed for ${city}`, err);
+            } else if (!geoData || geoData === "NOT_FOUND") { // Only fetch if not already tried and failed
+                await fetchMissingCityOnMap(city, bounds, i, citiesToProcess.length);
             }
         }
+
+        if (hasValidBounds) map.fitBounds(bounds, { padding: [50, 50], maxZoom: 12 });
+
+    } finally {
+        isMappingInProgress = false;
+    }
+}
+
+async function fetchMissingCityOnMap(city, bounds, index, total) {
+    let searchCity = city.split('-')[0].trim();
+    if (searchCity.includes("אזור תעשייה") || searchCity.includes("פארק תעשיות") || searchCity.startsWith("רחוב")) {
+        searchCity = city.replace(/-/g, " ").trim();
+    }
+    searchCity = searchCity.replace(/^רחוב\s+/g, "").replace(/^שדרות\s+(?!(השביעית|הציונות|ירושלים))/g, "").replace(/^פארק\s+/g, "").replace("בי\"ס", "").trim();
+
+    // Rate limiting progress update in console so user knows we are working
+    if (index % 10 === 0) setStatus('fetching', `מאחזר מיקום: ${index + 1}/${total}...`);
+
+    await new Promise(r => setTimeout(r, 1000)); // Respect Nominatim limits
+
+    try {
+        const baseUrl = "https://nominatim.openstreetmap.org/search?format=json&polygon_geojson=1&limit=1&countrycodes=il&accept-language=he&addressdetails=1";
+        let res = await fetch(`${baseUrl}&q=${encodeURIComponent(searchCity)}`, {
+            headers: { 'User-Agent': 'PikudHaoref_Alerts_Webapp/1.2' }
+        });
+        let json = await res.json();
+
+        if (json.length === 0 && searchCity.split(' ').length > 1) {
+            const lastWord = searchCity.split(' ').pop();
+            await new Promise(r => setTimeout(r, 1000));
+            res = await fetch(`${baseUrl}&q=${encodeURIComponent(lastWord)}`);
+            json = await res.json();
+        }
+
+        let fetchedData = null;
+        if (json && json.length > 0) {
+            const result = json[0];
+            const allowedClasses = ['place', 'boundary'];
+            const forbiddenTypes = ['highway', 'street', 'road', 'footway', 'residential', 'service'];
+            if (allowedClasses.includes(result.class) && !forbiddenTypes.includes(result.type)) {
+                if (result.geojson) fetchedData = result.geojson;
+                else if (result.lat && result.lon) fetchedData = { type: "Point", coordinates: [parseFloat(result.lon), parseFloat(result.lat)] };
+            }
+        }
+
+        if (fetchedData) {
+            geoCache[city] = fetchedData;
+            const asyncLayer = L.geoJSON(fetchedData, {
+                style: { color: "#ff0000", weight: 2, opacity: 1, fillColor: "#ff0000", fillOpacity: 0.3 },
+                pointToLayer: function (feature, latlng) { return L.circleMarker(latlng, { radius: 8, fillColor: "#ff0000", color: "#ffffff", weight: 1, opacity: 1, fillOpacity: 0.8 }); }
+            }).addTo(markersLayer);
+
+            asyncLayer._cityName = city;
+            asyncLayer.bindTooltip(city, { direction: 'center', className: 'custom-tooltip' });
+            plottedCities.add(city);
+
+            let lb = null;
+            if (typeof asyncLayer.getBounds === 'function') {
+                lb = asyncLayer.getBounds();
+            } else if (typeof asyncLayer.getLatLng === 'function') {
+                const ll = asyncLayer.getLatLng();
+                lb = L.latLngBounds(ll, ll);
+            }
+
+            if (lb && lb.isValid()) {
+                bounds.extend(lb);
+                if (plottedCities.size < 5 || plottedCities.size % 10 === 0) {
+                    map.fitBounds(bounds, { padding: [60, 60], maxZoom: 12, animate: true });
+                }
+            }
+        } else {
+            geoCache[city] = "NOT_FOUND_AGAIN";
+        }
+        localStorage.setItem('geoCache_v5', JSON.stringify(geoCache));
+    } catch (err) {
+        console.warn(`[GEO-FETCH-FAIL] ${city}: ${err.message}`);
+        // Don't mark as NOT_FOUND_AGAIN, let it retry on next poll if it was a network error
     }
 }
 
