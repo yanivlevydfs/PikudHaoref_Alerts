@@ -22,8 +22,11 @@ COPY . .
 # Create directory for SQLite database if it doesn't exist
 RUN mkdir -p /app/data
 
-# Expose the port the app runs on
-EXPOSE 8000
+# Default port if not provided by environment (e.g. for local runs)
+ENV PORT=8000
 
-# Command to run the application
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Expose the dynamic port
+EXPOSE $PORT
+
+# Command to run the application using shell form to expand the $PORT variable
+CMD uvicorn app.main:app --host 0.0.0.0 --port $PORT

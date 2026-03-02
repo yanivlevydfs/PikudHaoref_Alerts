@@ -65,6 +65,8 @@ async def lifespan(app: FastAPI):
     # Start the scheduler
     scheduler.start()
     
+    logger.info("Application startup complete. Ready to serve requests.")
+    
     # Yield control back to FastAPI immediately (Startup complete)
     yield
     
