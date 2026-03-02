@@ -435,6 +435,10 @@ function panToCity(cityName) {
 }
 
 // Fetch Logic
+// Poll Manager
+let pollInterval = 10000;
+let pollTimeout = null;
+
 async function fetchAlerts() {
     setStatus('fetching', 'בודק מול השרת...');
     try {
@@ -444,12 +448,23 @@ async function fetchAlerts() {
 
         const res = await fetch(endpoint);
         if (!res.ok) throw new Error("HTTP " + res.status);
+
         const data = await res.json();
         updateUI(data);
+
+        // Success -> Reset slow poll
+        pollInterval = 10000;
     } catch (err) {
         console.error("Failed to fetch alerts", err);
-        setStatus('danger', 'שגיאת התחברות לשרת');
-        offlineBanner.style.display = 'block';
+        // FORCE offline state in UI because we couldn't even talk to the backend
+        updateUI({ message: "Network Error", is_online: false, data: null });
+
+        // Error -> Fast poll for recovery
+        pollInterval = 3000;
+    } finally {
+        // Schedule next poll
+        if (pollTimeout) clearTimeout(pollTimeout);
+        pollTimeout = setTimeout(fetchAlerts, pollInterval);
     }
 }
 
@@ -536,7 +551,7 @@ function showDesktopNotification(title, body) {
     }
 }
 
-// Init & Interval
+// Init
 fetchAlerts();
 fetchHistory();
-setInterval(fetchAlerts, 10000); // Poll every 10 seconds on the client side
+// Polling is now handled inside fetchAlerts with setTimeout for adaptive rates
