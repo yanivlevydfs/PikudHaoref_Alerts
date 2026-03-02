@@ -219,7 +219,7 @@ def set_system_state(key, value):
 
 def get_system_state(key, default=None):
     """
-    Retrieves a system state value by key. Attempts to parse JSON if possible.
+    Retrieves a system state value by key. Robustly parses JSON values.
     """
     try:
         with get_db_connection() as conn:
@@ -229,11 +229,10 @@ def get_system_state(key, default=None):
             if row:
                 val = row['value']
                 try:
-                    # Try to parse as JSON if it looks like JSON
-                    if val.startswith('{') or val.startswith('['):
-                        return json.loads(val)
-                    return val
-                except:
+                    # Robustly parse JSON (handles null, true, false, numbers, dicts, lists)
+                    return json.loads(val)
+                except (ValueError, TypeError, json.JSONDecodeError):
+                    # Fallback to raw string if not valid JSON
                     return val
             return default
     except Exception as e:
