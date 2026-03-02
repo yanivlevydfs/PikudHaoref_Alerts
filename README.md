@@ -101,3 +101,5 @@ Navigate to the root URL `/` to access the interactive dashboard.
 - **Mock Mode**: Add `?mock=true` to the URL to simulate a massive attack for testing UI/Audio.
 
 ## Project Architecture
+
+For a detailed technical breakdown of the accumulation logic, proxy rotator, and database schema, please refer to the [architecture.md](architecture.md) file.
