@@ -87,8 +87,8 @@ def test_proxy(proxy_config):
     proxies = {"http": proxy_str, "https": proxy_str}
     
     try:
-        # 15s timeout - free proxies are slow and need thorough headers to not be blocked instantly
-        response = requests.get(url, timeout=15, proxies=proxies, headers=OREF_HEADERS)
+        # 5s timeout - fast-fail dead proxies to keep the scheduler responsive (Railway Optimization)
+        response = requests.get(url, timeout=5, proxies=proxies, headers=OREF_HEADERS)
         return response.status_code == 200
     except Exception:
         return False
@@ -109,8 +109,8 @@ def get_working_proxy(force_refresh=False):
     shuffled = ISRAELI_PROXIES.copy()
     random.shuffle(shuffled)
     
-    # Test up to 20 proxies at a time in parallel
-    batch_size = 20
+    # Test up to 50 proxies at a time in parallel (Faster recovery on Railway)
+    batch_size = 50
     for i in range(0, len(shuffled), batch_size):
         batch = shuffled[i:i+batch_size]
         logger.info(f"Testing batch of {len(batch)} proxies...")

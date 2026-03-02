@@ -61,7 +61,10 @@ async def lifespan(app: FastAPI):
         'interval',
         seconds=initial_interval,
         id='fetch_alerts_job',
-        replace_existing=True
+        replace_existing=True,
+        max_instances=3,    # Allow multiple attempts to overlap during recovery
+        coalesce=True,       # Combine multiple pending runs into one
+        misfire_grace_time=15
     )
     
     # Start the scheduler
