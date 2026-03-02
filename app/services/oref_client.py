@@ -121,7 +121,9 @@ def get_working_proxy(force_refresh=False):
                 proxy = future_to_proxy[future]
                 try:
                     if future.result():
-                        logger.info(f"Found working proxy: {proxy['url']} ({proxy['type']})")
+                        # Log explicit address and port for the user
+                        ip, port = proxy['url'].split(':')
+                        logger.info(f"✅ FOUND WORKING PROXY -> Address: {ip}, Port: {port}, Type: {proxy['type']}")
                         _working_proxy = proxy
                         _last_proxy_check = now
                         return _working_proxy
