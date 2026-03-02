@@ -242,8 +242,15 @@ h3 {
 }
 
 @keyframes slideDown {
-    from { transform: translateY(-10px); opacity: 0; }
-    to { transform: translateY(0); opacity: 1; }
+    from {
+        transform: translateY(-10px);
+        opacity: 0;
+    }
+
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
 }
 
 /* Alert Content Area */
@@ -952,4 +959,163 @@ h3 {
 /* Ensure leaflet controls are above the footer */
 .leaflet-bottom {
     bottom: 35px !important;
+}
+
+/* Ensure leaflet controls are above the bottom sheet in mini state */
+.leaflet-bottom {
+    bottom: 80px !important;
+    transition: bottom 0.3s ease;
+}
+
+/* --- Bottom Sheet Handle --- */
+.sheet-handle {
+    display: none;
+    justify-content: center;
+    padding: 12px 0;
+    cursor: grab;
+    touch-action: none;
+}
+
+.sheet-handle span {
+    width: 40px;
+    height: 5px;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 10px;
+}
+
+/* --- Mobile Redesign Media Queries --- */
+@media (max-width: 768px) {
+    body {
+        overflow: hidden;
+    }
+
+    .dashboard-container {
+        flex-direction: column-reverse;
+        /* Map on top, Sheet on bottom */
+        height: 100vh;
+        width: 100vw;
+        position: relative;
+    }
+
+    /* Map fills background */
+    .map-area {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        z-index: 1;
+    }
+
+    /* Floating Top Header */
+    .site-header {
+        position: absolute;
+        top: 15px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 90%;
+        max-width: 400px;
+        border-radius: 50px;
+        padding: 0.6rem 1.2rem;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+        z-index: 1002;
+        background: rgba(15, 17, 21, 0.85);
+        border: 1px solid var(--border-glass);
+    }
+
+    .header-logo .logo-text {
+        font-size: 1rem;
+    }
+
+    .header-nav,
+    .header-clock {
+        display: none;
+    }
+
+    /* The Bottom Sheet */
+    .sidebar {
+        position: fixed;
+        bottom: -72%;
+        /* Initially showing only the mini state */
+        left: 0;
+        width: 100%;
+        height: 80%;
+        /* Full height when expanded */
+        z-index: 1001;
+        border-right: none;
+        border-top: 1px solid var(--border-glass);
+        border-top-left-radius: 32px;
+        border-top-right-radius: 32px;
+        box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.6);
+        transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.1);
+        display: flex;
+        flex-direction: column;
+    }
+
+    .sidebar.expanded {
+        transform: translateY(-90%);
+        /* Adjust based on where we want it to sit */
+    }
+
+    /* Use a simple fixed state for now to avoid JS translate complexity unless needed */
+    .sidebar.active {
+        bottom: 0px !important;
+        height: 85vh;
+    }
+
+    /* Default mini-state height approx 130px */
+    .sidebar {
+        bottom: auto;
+        top: calc(100vh - 130px);
+        height: 100vh;
+    }
+
+    .sidebar.active {
+        top: 15vh;
+    }
+
+    .sheet-handle {
+        display: flex;
+    }
+
+    /* Spacing internal sheet content */
+    .sidebar-header {
+        padding: 0.5rem 1.5rem;
+    }
+
+    .sidebar-header h1 {
+        font-size: 1.2rem;
+    }
+
+    .alert-content {
+        padding-top: 0;
+    }
+
+    .no-alerts-screen {
+        padding: 20px 0;
+    }
+
+    .shield-icon {
+        font-size: 2.5rem;
+    }
+
+    .site-footer {
+        display: none;
+    }
+
+    /* Map UI cleanup */
+    .map-overlay {
+        display: none;
+        /* Already have header */
+    }
+
+    .leaflet-control-zoom {
+        bottom: 140px !important;
+        /* Above mini sheet */
+    }
+
+    .sidebar.active~.map-area .leaflet-control-zoom {
+        opacity: 0;
+        /* Hide when sheet is full screen */
+    }
 }

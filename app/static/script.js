@@ -58,6 +58,10 @@ const alertTitle = document.getElementById('alert-title');
 const alertDesc = document.getElementById('alert-desc');
 const locationsCount = document.getElementById('locations-count');
 const lastUpdated = document.getElementById('last-updated');
+
+// Mobile Bottom Sheet Elements
+const sidebarSheet = document.getElementById('sidebar-sheet');
+const sheetHandle = document.querySelector('.sheet-handle');
 const citySelect = $('#city-select'); // Use jQuery for Select2
 const locationsList = document.getElementById('locations-list');
 
@@ -91,6 +95,41 @@ testSoundBtn.addEventListener('click', () => {
     playAlertAudio(true); // Force play for testing
 });
 
+// --- Bottom Sheet Interaction Logic ---
+let isSheetExpanded = false;
+
+function toggleSheet(expand) {
+    if (expand === undefined) expand = !isSheetExpanded;
+    isSheetExpanded = expand;
+
+    if (isSheetExpanded) {
+        sidebarSheet.classList.add('active');
+    } else {
+        sidebarSheet.classList.remove('active');
+    }
+}
+
+// Tap handle to toggle
+if (sheetHandle) {
+    sheetHandle.addEventListener('click', () => toggleSheet());
+}
+
+// Simple Swipe Detection for Mobile
+let touchStartY = 0;
+sidebarSheet.addEventListener('touchstart', (e) => {
+    touchStartY = e.touches[0].clientY;
+}, { passive: true });
+
+sidebarSheet.addEventListener('touchend', (e) => {
+    const touchEndY = e.changedTouches[0].clientY;
+    const diff = touchStartY - touchEndY;
+
+    if (Math.abs(diff) > 50) { // Threshold
+        if (diff > 0) toggleSheet(true);  // Swipe Up
+        else toggleSheet(false);          // Swipe Down
+    }
+}, { passive: true });
+
 // Initialize Select2 on load
 $(document).ready(function () {
     citySelect.select2({
@@ -104,6 +143,11 @@ $(document).ready(function () {
         const selectedCity = e.params.data.text;
         if (selectedCity) {
             panToCity(selectedCity);
+            // On mobile, expand the sheet slightly or stay full if already there
+            // But usually, selecting from dropdown means the user wants to see the map
+            // So we might want to shrink it? Or keep it open if it's already full.
+            // Let's shrink it to mini-state so they see the marker.
+            if (window.innerWidth <= 768) toggleSheet(false);
         }
     });
 });
