@@ -13,24 +13,34 @@ class AlertState:
                 if self.is_online:
                     logger.warning(f"System status changed to OFFLINE: {new_data['error']}")
                 self.is_online = False
-                # We keep the current data (persistence during attack blips)
                 return
 
             # Case 2: Success! (Either active alerts or empty state)
             self.is_online = True
             
-            # Explicit check for "Empty" response (success but no active alerts)
-            # This is when we FINALLY clear the map.
-            if new_data is None or (isinstance(new_data, dict) and not new_data.get("data")):
+            # Normalize list responses to a single "bulk" object or None if empty
+            normalized_alert = None
+            if isinstance(new_data, list) and len(new_data) > 0:
+                # If multiple alerts, merge them into one "Current Bulk"
+                normalized_alert = new_data[0] # Base metadata from the first/latest
+                all_cities = []
+                for entry in new_data:
+                    all_cities.extend(entry.get("data", []))
+                normalized_alert["data"] = list(set(all_cities))
+            elif isinstance(new_data, dict) and new_data.get("data"):
+                normalized_alert = new_data
+
+            # Case 2a: Explicit check for "Empty" response (success but no active alerts)
+            if not normalized_alert:
                 self.data = None
                 return
 
             # Case 3: We have fresh active alerts to accumulate
-            new_cities = set(new_data.get("data", []))
+            new_cities = set(normalized_alert.get("data", []))
             
             if not self.data:
                 # Fresh start for a new bulk
-                self.data = new_data
+                self.data = normalized_alert
             else:
                 # Merge cities into existing data to keep the map "Full" of the bulk
                 existing_cities = set(self.data.get("data", []))
@@ -38,9 +48,9 @@ class AlertState:
                 
                 self.data["data"] = merged_cities
                 # Always update with the latest metadata
-                self.data["id"] = new_data.get("id", self.data.get("id"))
-                self.data["title"] = new_data.get("title", self.data.get("title"))
-                self.data["desc"] = new_data.get("desc", self.data.get("desc"))
+                self.data["id"] = normalized_alert.get("id", self.data.get("id"))
+                self.data["title"] = normalized_alert.get("title", self.data.get("title"))
+                self.data["desc"] = normalized_alert.get("desc", self.data.get("desc"))
             
     def get(self):
         with self.lock:

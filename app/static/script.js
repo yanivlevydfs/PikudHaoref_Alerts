@@ -154,7 +154,11 @@ function updateUI(data) {
 
     // Check if it's new data to avoid re-rendering layout/map if nothing changed
     if (currentAlertId === alertData.id) {
-        setStatus('danger', 'מצב חירום פעיל');
+        if (data.is_online === false) {
+            setStatus('danger', 'מערכת לא זמינה');
+        } else {
+            setStatus('danger', 'מצב חירום פעיל');
+        }
         return;
     }
 
@@ -188,7 +192,12 @@ function updateUI(data) {
 
     noAlertsScreen.classList.remove('active');
     activeAlertsScreen.classList.add('active');
-    setStatus('danger', 'מצב חירום פעיל');
+
+    if (data.is_online === false) {
+        setStatus('danger', 'מערכת לא זמינה');
+    } else {
+        setStatus('danger', 'מצב חירום פעיל');
+    }
 
     // Trigger Geo-cording and Mapping
     plotCitiesOnMap(alertData.data);
