@@ -53,16 +53,42 @@ def test_proxy(proxy_config):
     
     proxies = {"http": proxy_str, "https": proxy_str}
     
-    headers = {
-        'Referer': 'https://www.oref.org.il/',
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-        'X-Requested-With': 'XMLHttpRequest'
-    }
+# Common headers for Oref
+OREF_HEADERS = {
+    'Host': 'www.oref.org.il',
+    'Accept': 'application/json, text/javascript, */*; q=0.01',
+    'Accept-Language': 'he-IL,he;q=0.9,en-US;q=0.8,en;q=0.7',
+    'Accept-Encoding': 'gzip, deflate, br',
+    'Connection': 'keep-alive',
+    'Referer': 'https://www.oref.org.il/',
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+    'X-Requested-With': 'XMLHttpRequest',
+    'Sec-Ch-Ua': '"Chromium";v="122", "Not(A:Brand";v="24", "Google Chrome";v="122"',
+    'Sec-Ch-Ua-Mobile': '?0',
+    'Sec-Ch-Ua-Platform': '"Windows"',
+    'Sec-Fetch-Dest': 'empty',
+    'Sec-Fetch-Mode': 'cors',
+    'Sec-Fetch-Site': 'same-origin'
+}
 
+def test_proxy(proxy_config):
+    """
+    Tests if a proxy can reach Oref API with required headers.
+    """
+    url = "https://www.oref.org.il/WarningMessages/alert/alerts.json"
+    p_url = proxy_config["url"]
+    p_type = proxy_config["type"]
+    
+    if p_type == "socks5":
+        proxy_str = f"socks5h://{p_url}"
+    else:
+        proxy_str = f"http://{p_url}"
+    
+    proxies = {"http": proxy_str, "https": proxy_str}
+    
     try:
-        # 7s timeout for the "is it alive" check - free proxies are slow
-        response = requests.get(url, timeout=7, proxies=proxies, headers=headers)
-        # 200 is success (even if empty list), 403 is blocked
+        # 15s timeout - free proxies are slow and need thorough headers to not be blocked instantly
+        response = requests.get(url, timeout=15, proxies=proxies, headers=OREF_HEADERS)
         return response.status_code == 200
     except Exception:
         return False
@@ -114,22 +140,7 @@ def fetch_active_alerts():
     url = "https://www.oref.org.il/WarningMessages/alert/alerts.json"
     home_url = "https://www.oref.org.il/"
     
-    headers = {
-        'Host': 'www.oref.org.il',
-        'Accept': 'application/json, text/javascript, */*; q=0.01',
-        'Accept-Language': 'he-IL,he;q=0.9,en-US;q=0.8,en;q=0.7',
-        'Accept-Encoding': 'gzip, deflate, br',
-        'Connection': 'keep-alive',
-        'Referer': home_url,
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-        'X-Requested-With': 'XMLHttpRequest',
-        'Sec-Ch-Ua': '"Chromium";v="122", "Not(A:Brand";v="24", "Google Chrome";v="122"',
-        'Sec-Ch-Ua-Mobile': '?0',
-        'Sec-Ch-Ua-Platform': '"Windows"',
-        'Sec-Fetch-Dest': 'empty',
-        'Sec-Fetch-Mode': 'cors',
-        'Sec-Fetch-Site': 'same-origin'
-    }
+    headers = OREF_HEADERS
 
     def attempt_request(proxy_config=None):
         if proxy_config:
@@ -164,6 +175,15 @@ def fetch_active_alerts():
     logger.info("Attempting direct connection to Oref...")
     response = attempt_request()
     
+    if response and response.status_code == 200:
+        logger.info("SUCCESS: Direct connection to Oref established.")
+        return process_response(response)
+    
+    if response:
+        logger.warning(f"Direct connection returned status {response.status_code}. Might be blocked.")
+    else:
+        logger.warning("Direct connection failed completely (Timeout/Network Error).")
+
     # Step 2: If direct fails or 403, try proxies
     import os
     is_railway = os.getenv("RAILWAY_ENVIRONMENT") or os.getenv("PORT") is not None

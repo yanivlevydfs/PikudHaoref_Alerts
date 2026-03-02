@@ -27,7 +27,10 @@ def scheduled_job():
     logger.info(f"Global alert state updated. Status: {status_str}, IsAttack: {alerts and 'data' in alerts}")
     
     # Adaptive Polling & Database Logic
-    if alerts and "data" in alerts:
+    if alerts and "error" in alerts:
+        logger.error(f"Oref API check failed: {alerts['error']}")
+        # Keep current interval for retry
+    elif alerts and "data" in alerts:
         # Insert into SQLite Database
         was_inserted = insert_alert_if_new(alerts)
         if was_inserted:
@@ -36,12 +39,12 @@ def scheduled_job():
         active_cities = alerts.get("data", [])
         city_count = len(active_cities)
         title = alerts.get("title", 'Unknown Alert')
-        logger.info(f"Oref returning alerts: '{title}' affecting {city_count} locations.")
+        logger.info(f"SUCCESS: Oref returning alerts: '{title}' affecting {city_count} locations.")
         logger.info(f"ADAPTIVE POLLING: Emergency active. Scaling polling interval down to {APP_CONFIG['scheduler']['emergency_interval_seconds']} seconds.")
         # Under attack: Poll very frequently
         scheduler.reschedule_job('fetch_alerts_job', trigger='interval', seconds=APP_CONFIG['scheduler']['emergency_interval_seconds'])
     else:
-        logger.info("Oref returned no active alerts.")
+        logger.info("Oref returned no active alerts (Status: Healthy).")
         logger.info(f"ADAPTIVE POLLING: Shigra (Routine). Relaxing polling interval to {APP_CONFIG['scheduler']['routine_interval_seconds']} seconds.")
         # Routine: Poll gently
         scheduler.reschedule_job('fetch_alerts_job', trigger='interval', seconds=APP_CONFIG['scheduler']['routine_interval_seconds'])

@@ -10,6 +10,8 @@ class AlertState:
         with self.lock:
             # Case 1: Real Connection Error or API Block
             if isinstance(new_data, dict) and "error" in new_data:
+                if self.is_online:
+                    logger.warning(f"System status changed to OFFLINE: {new_data['error']}")
                 self.is_online = False
                 # We keep the current data (persistence during attack blips)
                 return

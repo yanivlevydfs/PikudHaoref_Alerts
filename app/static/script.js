@@ -123,15 +123,26 @@ function updateUI(data) {
     if (data && data.is_online === false) {
         offlineBanner.style.display = 'block';
         setStatus('danger', 'מערכת לא זמינה');
+
+        // Update the "No Alerts" screen to show offline status if visible
+        const noAlertsTitle = noAlertsScreen.querySelector('h2');
+        if (noAlertsTitle) noAlertsTitle.innerText = 'מערכת לא זמינה';
     } else {
         offlineBanner.style.display = 'none';
-        // setStatus will be called below by the regular logic
+        const noAlertsTitle = noAlertsScreen.querySelector('h2');
+        if (noAlertsTitle) noAlertsTitle.innerText = 'שגרה';
     }
 
     if (!data || data.message === "No active alerts at the moment." || !data.data) {
         noAlertsScreen.classList.add('active');
         activeAlertsScreen.classList.remove('active');
-        setStatus('safe', 'שגרה - אין התרעות');
+
+        if (data && data.is_online === false) {
+            setStatus('danger', 'מערכת לא זמינה');
+        } else {
+            setStatus('safe', 'שגרה - אין התרעות');
+        }
+
         markersLayer.clearLayers();
         citySelect.empty().trigger('change'); // Clear Dropdown
         locationsList.innerHTML = '';
@@ -383,7 +394,8 @@ async function fetchAlerts() {
         updateUI(data);
     } catch (err) {
         console.error("Failed to fetch alerts", err);
-        setStatus('safe', 'שגיאת התחברות');
+        setStatus('danger', 'שגיאת התחברות לשרת');
+        offlineBanner.style.display = 'block';
     }
 }
 
