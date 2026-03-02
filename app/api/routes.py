@@ -42,15 +42,11 @@ async def get_alerts(mock: bool = False):
 
     alerts_data = global_alert_state.get()
     
-    if alerts_data is None:
-        return {"message": "No active alerts at the moment.", "data": None}
-        
-    if isinstance(alerts_data, dict) and "error" in alerts_data:
-        error_msg = alerts_data["error"]
-        logger.error(f"API Error on /api/alerts: {error_msg}")
-        raise HTTPException(status_code=500, detail=error_msg)
-        
-    return {"message": "Active alerts found.", "data": alerts_data}
+    return {
+        "message": "Active alerts found." if alerts_data else "No active alerts at the moment.",
+        "data": alerts_data,
+        "is_online": global_alert_state.is_online
+    }
 
 @router.get(
     "/api/alerts/history", 

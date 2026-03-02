@@ -51,6 +51,7 @@ const statusDot = document.getElementById('status-dot');
 const statusText = document.getElementById('status-text');
 const noAlertsScreen = document.getElementById('no-alerts');
 const activeAlertsScreen = document.getElementById('active-alerts');
+const offlineBanner = document.getElementById('offline-banner');
 const alertTitle = document.getElementById('alert-title');
 const alertDesc = document.getElementById('alert-desc');
 const locationsCount = document.getElementById('locations-count');
@@ -118,6 +119,15 @@ function setStatus(state, text) {
 }
 
 function updateUI(data) {
+    // System Online/Offline logic
+    if (data && data.is_online === false) {
+        offlineBanner.style.display = 'block';
+        setStatus('danger', 'מערכת לא זמינה');
+    } else {
+        offlineBanner.style.display = 'none';
+        // setStatus will be called below by the regular logic
+    }
+
     if (!data || data.message === "No active alerts at the moment." || !data.data) {
         noAlertsScreen.classList.add('active');
         activeAlertsScreen.classList.remove('active');
