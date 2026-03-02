@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Any
 
 class AlertData(BaseModel):
     id: str = Field(..., description="Unique alert identifier")
@@ -26,4 +26,4 @@ class HistoryResponse(BaseModel):
 
 class StatisticsResponse(BaseModel):
     message: str
-    data: List[Dict[str, int]]
+    data: List[Dict[str, Any]]
