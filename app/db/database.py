@@ -185,5 +185,4 @@ def get_alert_statistics(timeframe="24h"):
         logger.error(f"Error fetching alert statistics: {e}")
         return []
 
-# Initialize immediately when the module is imported
-init_db()
+# init_db() is called in the FastAPI lifespan handler in app/main.py

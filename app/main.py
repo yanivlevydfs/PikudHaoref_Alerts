@@ -194,4 +194,7 @@ async def serve_page(request: Request, page: str):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=True)
+    # Use the PORT provided by the platform, or default to 8000
+    port = int(os.getenv("PORT", 8000))
+    logger.info(f"Starting server on port {port}...")
+    uvicorn.run("app.main:app", host="0.0.0.0", port=port, reload=False)

@@ -19,14 +19,13 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application code
 COPY . .
 
-# Create directory for SQLite database if it doesn't exist
-RUN mkdir -p /app/data
+# Create directory for SQLite database and ensure it's writable
+RUN mkdir -p /app/data && chmod 777 /app/data
+ENV DB_DIR=/app/data
 
-# Default port if not provided by environment (e.g. for local runs)
+# Default port if not provided by environment
 ENV PORT=8000
-
-# Expose the dynamic port
 EXPOSE $PORT
 
-# Command to run the application using shell form to expand the $PORT variable
-CMD uvicorn app.main:app --host 0.0.0.0 --port $PORT
+# Start application using the package module runner
+CMD ["python", "-m", "app.main"]
