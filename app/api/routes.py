@@ -42,6 +42,8 @@ async def get_alerts(mock: bool = False):
 
     alerts_data = global_alert_state.get()
     
+    logger.info(f"API Request: /api/alerts (Online: {global_alert_state.is_online}, HasData: {alerts_data is not None})")
+    
     return {
         "message": "Active alerts found." if alerts_data else "No active alerts at the moment.",
         "data": alerts_data,

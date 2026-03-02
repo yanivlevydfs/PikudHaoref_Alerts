@@ -23,6 +23,8 @@ def scheduled_job():
     
     # Update our global memory state for the FastAPI routes
     global_alert_state.update(alerts)
+    status_str = "SUCCESS" if global_alert_state.is_online else "FAILED"
+    logger.info(f"Global alert state updated. Status: {status_str}, IsAttack: {alerts and 'data' in alerts}")
     
     # Adaptive Polling & Database Logic
     if alerts and "data" in alerts:

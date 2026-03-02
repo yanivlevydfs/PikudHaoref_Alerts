@@ -34,7 +34,7 @@ ISRAELI_PROXIES = load_proxies()
 # State for the currently working proxy
 _working_proxy = None
 _last_proxy_check = 0
-PROXY_CACHE_TTL = 3600 # Cache working proxy for 1 hour
+PROXY_CACHE_TTL = 86400 # Cache working proxy for 24 hours (Keep working with it!)
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -75,6 +75,7 @@ def get_working_proxy(force_refresh=False):
     
     now = time.time()
     if not force_refresh and _working_proxy and (now - _last_proxy_check < PROXY_CACHE_TTL):
+        logger.info(f"Reusing working proxy: {_working_proxy['url']} (Cached)")
         return _working_proxy
 
     logger.info("Testing Israeli proxies in parallel to find a working one...")
@@ -160,6 +161,7 @@ def fetch_active_alerts():
             return None
 
     # Step 1: Try Direct first
+    logger.info("Attempting direct connection to Oref...")
     response = attempt_request()
     
     # Step 2: If direct fails or 403, try proxies
@@ -179,7 +181,7 @@ def fetch_active_alerts():
                 
             response = attempt_request(proxy)
             if response and response.status_code == 200:
-                logger.info(f"Successfully fetched alerts via proxy: {proxy['url']}")
+                logger.info(f"SUCCESS: Fetched alerts via working proxy: {proxy['url']}")
                 return process_response(response)
             elif response:
                 logger.warning(f"Proxy {proxy['url']} returned status {response.status_code}")
