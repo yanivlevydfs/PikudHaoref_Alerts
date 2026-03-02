@@ -56,6 +56,14 @@ def init_db():
                     timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
                 )
             ''')
+
+            # Create the system_state table for cross-process synchronization
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS system_state (
+                    key TEXT PRIMARY KEY,
+                    value TEXT
+                )
+            ''')
             
             # Create indexes for high performance querying
             cursor.execute('CREATE INDEX IF NOT EXISTS idx_timestamp ON alerts(timestamp)')
@@ -184,6 +192,53 @@ def get_alert_statistics(timeframe="24h"):
     except Exception as e:
         logger.error(f"Error fetching alert statistics: {e}")
         return []
+
+def set_system_state(key, value):
+    """
+    Atomically updates or inserts a system state key-value pair.
+    Used for cross-process synchronization of 'is_online' and 'active_alerts'.
+    """
+    try:
+        # Convert non-string values to JSON strings
+        if not isinstance(value, str):
+            val_str = json.dumps(value, ensure_ascii=False)
+        else:
+            val_str = value
+            
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                INSERT INTO system_state (key, value) VALUES (?, ?)
+                ON CONFLICT(key) DO UPDATE SET value = excluded.value
+            ''', (key, val_str))
+            conn.commit()
+            return True
+    except Exception as e:
+        logger.error(f"Error setting system state '{key}': {e}")
+        return False
+
+def get_system_state(key, default=None):
+    """
+    Retrieves a system state value by key. Attempts to parse JSON if possible.
+    """
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('SELECT value FROM system_state WHERE key = ?', (key,))
+            row = cursor.fetchone()
+            if row:
+                val = row['value']
+                try:
+                    # Try to parse as JSON if it looks like JSON
+                    if val.startswith('{') or val.startswith('['):
+                        return json.loads(val)
+                    return val
+                except:
+                    return val
+            return default
+    except Exception as e:
+        logger.error(f"Error getting system state '{key}': {e}")
+        return default
 
 # Initialize immediately when the module is imported
 init_db()

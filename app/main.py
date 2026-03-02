@@ -30,28 +30,22 @@ def scheduled_job():
     is_error = isinstance(alerts, dict) and "error" in alerts
     has_active_alerts = (isinstance(alerts, list) and len(alerts) > 0) or (isinstance(alerts, dict) and "data" in alerts)
 
-    if alerts and is_error:
+    if is_error:
         logger.error(f"Oref API check failed: {alerts['error']}")
-        # Keep current interval for retry
-    elif alerts and has_active_alerts:
-        # Normalize for DB insertion if it's a list
+        # Hyper-Fast Recovery: Poll every 10 seconds during outages
+        logger.info("HYPER-FAST RECOVERY: System is offline. Polling every 10 seconds to detect restoration.")
+        scheduler.reschedule_job('fetch_alerts_job', trigger='interval', seconds=10)
+    elif has_active_alerts:
+        # Emergency status: Use configured emergency interval
         alert_to_insert = alerts[0] if isinstance(alerts, list) else alerts
-        # Insert into SQLite Database
-        was_inserted = insert_alert_if_new(alert_to_insert)
-        if was_inserted:
-            logger.info(f"Database recorded new alert with ID: {alerts.get('id')}")
-            
-        active_cities = alerts.get("data", [])
-        city_count = len(active_cities)
-        title = alerts.get("title", 'Unknown Alert')
-        logger.info(f"SUCCESS: Oref returning alerts: '{title}' affecting {city_count} locations.")
+        insert_alert_if_new(alert_to_insert)
+        
         logger.info(f"ADAPTIVE POLLING: Emergency active. Scaling polling interval down to {APP_CONFIG['scheduler']['emergency_interval_seconds']} seconds.")
-        # Under attack: Poll very frequently
         scheduler.reschedule_job('fetch_alerts_job', trigger='interval', seconds=APP_CONFIG['scheduler']['emergency_interval_seconds'])
     else:
+        # Healthy & Routine
         logger.info("Oref returned no active alerts (Status: Healthy).")
         logger.info(f"ADAPTIVE POLLING: Shigra (Routine). Relaxing polling interval to {APP_CONFIG['scheduler']['routine_interval_seconds']} seconds.")
-        # Routine: Poll gently
         scheduler.reschedule_job('fetch_alerts_job', trigger='interval', seconds=APP_CONFIG['scheduler']['routine_interval_seconds'])
 
 @asynccontextmanager
