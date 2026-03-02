@@ -8,20 +8,22 @@ class AlertState:
 
     def update(self, new_data):
         with self.lock:
-            # If API returns None or an error, we keep the current state but mark as offline
-            if new_data is None or (isinstance(new_data, dict) and "error" in new_data):
+            # Case 1: Real Connection Error or API Block
+            if isinstance(new_data, dict) and "error" in new_data:
                 self.is_online = False
+                # We keep the current data (persistence during attack blips)
                 return
 
+            # Case 2: Success! (Either active alerts or empty state)
             self.is_online = True
             
-            # Explicit check for "Empty" response (success but no alerts)
-            # Oref API returns empty list or empty string when no alerts are active.
-            if not new_data or ("data" in new_data and not new_data["data"]):
+            # Explicit check for "Empty" response (success but no active alerts)
+            # This is when we FINALLY clear the map.
+            if new_data is None or (isinstance(new_data, dict) and not new_data.get("data")):
                 self.data = None
                 return
 
-            # If we have new data, accumulate it
+            # Case 3: We have fresh active alerts to accumulate
             new_cities = set(new_data.get("data", []))
             
             if not self.data:
