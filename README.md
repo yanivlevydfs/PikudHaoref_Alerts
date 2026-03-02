@@ -100,37 +100,4 @@ The system will automatically find a working Israeli proxy and "stick" to it for
 Navigate to the root URL `/` to access the interactive dashboard.
 - **Mock Mode**: Add `?mock=true` to the URL to simulate a massive attack for testing UI/Audio.
 
-## Deployment
-
-The application is containerized and ready for deployment on modern cloud platforms.
-
-### 1. Docker & Docker Compose
-To run the application locally using Docker:
-```bash
-# Build and start the container
-docker-compose up --build
-```
-The app will be available at `http://localhost:8000`.
-
-### 2. Render.com / Northflank
-1. Connect your GitHub repository.
-2. The `render.yaml` blueprint will automatically configure the service.
-3. Ensure the `PORT` environment variable is set (Render does this automatically).
-
-### 3. Fly.io
-1. Install the [flyctl](https://fly.io/docs/hands-on/install-cli/) CLI.
-2. Run `fly launch` to initialize the project (uses `fly.toml`).
-3. Deploy using `fly deploy`.
-
-### 4. DigitalOcean App Platform
-1. Select "Apps" -> "Create".
-2. Link your GitHub repository.
-3. Choose "Docker" as the resource type. DigitalOcean will automatically pick up the `Dockerfile`.
-
-### 5. Coolify (Self-Hosted)
-1. Point Coolify to your GitHub repository.
-2. Select "Docker Compose" as the build pack.
-3. Coolify will use `docker-compose.yml` to orchestrate the deployment.
-
----
 ## Project Architecture
