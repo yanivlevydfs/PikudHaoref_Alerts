@@ -36,6 +36,10 @@ _working_proxy = None
 _last_proxy_check = 0
 PROXY_CACHE_TTL = 86400 # Cache working proxy for 24 hours (Keep working with it!)
 
+import threading
+_scrape_lock = threading.Lock()
+_last_scrape_time = 0
+
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # Common headers for Oref
@@ -68,6 +72,10 @@ def test_proxy(proxy_config):
     
     if p_type == "socks5":
         proxy_str = f"socks5h://{p_url}"
+    elif p_type == "socks4":
+        proxy_str = f"socks4://{p_url}"
+    elif p_type == "https":
+        proxy_str = f"https://{p_url}"
     else:
         proxy_str = f"http://{p_url}"
     
@@ -86,11 +94,52 @@ def test_proxy(proxy_config):
     except Exception:
         return False
 
+def fetch_free_proxies():
+    """Fetch fresh Israeli proxies from free APIs (GeoNode and ProxyScrape)."""
+    new_proxies = []
+    
+    # 1. GeoNode API
+    try:
+        r = requests.get('https://proxylist.geonode.com/api/proxy-list?limit=50&page=1&sort_by=lastChecked&sort_type=desc&country=IL', timeout=10)
+        if r.status_code == 200:
+            data = r.json()
+            for p in data.get('data', []):
+                protocol = p.get('protocols', ['http'])[0].lower()
+                ip = p.get('ip')
+                port = p.get('port')
+                if ip and port:
+                    new_proxies.append({"url": f"{ip}:{port}", "type": protocol})
+    except Exception as e:
+        logger.warning(f"Failed to fetch proxies from GeoNode: {e}")
+        
+    # 2. ProxyScrape API
+    try:
+        r = requests.get('https://api.proxyscrape.com/v4/free-proxy-list/get?request=display_proxies&proxy_format=protocolipport&format=json&country=IL', timeout=10)
+        if r.status_code == 200:
+            data = r.json()
+            for p in data.get('proxies', []):
+                proxy_str = p.get('proxy', '')
+                if '://' in proxy_str:
+                    protocol, idx = proxy_str.split('://')
+                    new_proxies.append({"url": idx, "type": protocol.lower()})
+    except Exception as e:
+        logger.warning(f"Failed to fetch proxies from ProxyScrape: {e}")
+        
+    # Deduplicate
+    unique = []
+    seen = set()
+    for p in new_proxies:
+        if p['url'] not in seen:
+            seen.add(p['url'])
+            unique.append(p)
+            
+    return unique
+
 def get_working_proxy(force_refresh=False):
     """
     Returns a working proxy from the list, testing them in parallel.
     """
-    global _working_proxy, _last_proxy_check
+    global _working_proxy, _last_proxy_check, _last_scrape_time, ISRAELI_PROXIES
     now = time.time()
     if not force_refresh and _working_proxy and (now - _last_proxy_check < PROXY_CACHE_TTL):
         logger.info(f"Reusing working proxy: {_working_proxy['url']} (Cached)")
@@ -129,7 +178,28 @@ def get_working_proxy(force_refresh=False):
                 except Exception:
                     continue
             
-    logger.error("No working proxies found in the entire list!")
+    logger.error("No static proxies worked. Attempting dynamic free proxy APIs...")
+    
+    # 5 minute cooldown before scraping again
+    if now - _last_scrape_time > 300:
+        if _scrape_lock.acquire(blocking=False):
+            try:
+                logger.info("Scraping fresh Israeli proxies from GeoNode and ProxyScrape...")
+                fresh_proxies = fetch_free_proxies()
+                if fresh_proxies:
+                    logger.info(f"Scraped {len(fresh_proxies)} fresh proxies. Testing them...")
+                    ISRAELI_PROXIES = fresh_proxies  # Replace dead list with fresh ones
+                    _last_scrape_time = time.time()
+                    return get_working_proxy(force_refresh=True)
+                else:
+                    logger.error("Proxy scrape yielded 0 results. System is completely offline.")
+            finally:
+                _scrape_lock.release()
+        else:
+            logger.info("Another thread is currently scraping proxies. Waiting...")
+    else:
+        logger.warning(f"Scrape cooldown active. Next scrape allowed in {int(300 - (now - _last_scrape_time))}s.")
+        
     _working_proxy = None
     return None
 

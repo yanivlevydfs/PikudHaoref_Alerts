@@ -611,6 +611,12 @@ window.addEventListener('beforeinstallprompt', (e) => {
     // Show the install button
     if (pwaInstallBtn) {
         pwaInstallBtn.style.display = 'flex';
+        // Trigger transition
+        setTimeout(() => {
+            pwaInstallBtn.style.opacity = '1';
+            pwaInstallBtn.style.transform = 'translateX(0)';
+        }, 10);
+
         console.log('PWA: Install prompt available, showing button.');
 
         // Auto-hide after 7 seconds
