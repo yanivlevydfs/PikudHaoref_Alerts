@@ -219,6 +219,10 @@ def fetch_active_alerts():
             p_type = proxy_config["type"]
             if p_type == "socks5":
                 proxy_str = f"socks5h://{p_url}"
+            elif p_type == "socks4":
+                proxy_str = f"socks4://{p_url}"
+            elif p_type == "https":
+                proxy_str = f"https://{p_url}"
             else:
                 proxy_str = f"http://{p_url}"
             proxies = {"http": proxy_str, "https": proxy_str}
