@@ -38,21 +38,6 @@ PROXY_CACHE_TTL = 86400 # Cache working proxy for 24 hours (Keep working with it
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-def test_proxy(proxy_config):
-    """
-    Tests if a proxy can reach Oref API with required headers.
-    """
-    url = "https://www.oref.org.il/WarningMessages/alert/alerts.json"
-    p_url = proxy_config["url"]
-    p_type = proxy_config["type"]
-    
-    if p_type == "socks5":
-        proxy_str = f"socks5h://{p_url}"
-    else:
-        proxy_str = f"http://{p_url}"
-    
-    proxies = {"http": proxy_str, "https": proxy_str}
-    
 # Common headers for Oref
 OREF_HEADERS = {
     'Host': 'www.oref.org.il',
@@ -73,9 +58,11 @@ OREF_HEADERS = {
 
 def test_proxy(proxy_config):
     """
-    Tests if a proxy can reach Oref API with required headers.
+    Tests if a proxy can reach the Oref website.
+    We check the homepage instead of the API because the API often 403s without a valid session cookie,
+    making the proxy look 'dead' when it's actually just missing a cookie.
     """
-    url = "https://www.oref.org.il/WarningMessages/alert/alerts.json"
+    home_url = "https://www.oref.org.il/"
     p_url = proxy_config["url"]
     p_type = proxy_config["type"]
     
@@ -87,8 +74,14 @@ def test_proxy(proxy_config):
     proxies = {"http": proxy_str, "https": proxy_str}
     
     try:
-        # 15s timeout - Reverting to 15s because 5s was too aggressive for free proxies (Railway Resilience)
-        response = requests.get(url, timeout=15, proxies=proxies, headers=OREF_HEADERS)
+        # 15s timeout - Reverting to 15s because free proxies are slow (Railway Resilience)
+        # Check homepage first to confirm the proxy can route to Oref
+        response = requests.get(
+            home_url, 
+            timeout=15, 
+            proxies=proxies, 
+            headers={'User-Agent': OREF_HEADERS['User-Agent']}
+        )
         return response.status_code == 200
     except Exception:
         return False
