@@ -90,6 +90,7 @@ def get_working_proxy(force_refresh=False):
     """
     Returns a working proxy from the list, testing them in parallel.
     """
+    global _working_proxy, _last_proxy_check
     now = time.time()
     if not force_refresh and _working_proxy and (now - _last_proxy_check < PROXY_CACHE_TTL):
         logger.info(f"Reusing working proxy: {_working_proxy['url']} (Cached)")

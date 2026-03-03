@@ -47,6 +47,7 @@ let currentAlertId = null;
 let currentCitiesHash = ""; // Track hash of cities to avoid redundant plotting
 let plottedCities = new Set(); // Track cities currently shown on map
 let markersLayer = L.layerGroup().addTo(map);
+let localGeoData = {}; // High-performance local polygons mapping
 
 // DOM Elements
 const statusDot = document.getElementById('status-dot');
@@ -143,13 +144,18 @@ $(document).ready(function () {
         const selectedCity = e.params.data.text;
         if (selectedCity) {
             panToCity(selectedCity);
-            // On mobile, expand the sheet slightly or stay full if already there
-            // But usually, selecting from dropdown means the user wants to see the map
-            // So we might want to shrink it? Or keep it open if it's already full.
-            // Let's shrink it to mini-state so they see the marker.
             if (window.innerWidth <= 768) toggleSheet(false);
         }
     });
+
+    // Load High-Performance Local Polygons
+    fetch('/static/locations_polygons.json')
+        .then(res => res.json())
+        .then(data => {
+            localGeoData = data;
+            console.log(`[GEO] Loaded ${Object.keys(localGeoData).length} local polygons.`);
+        })
+        .catch(err => console.error("[GEO] Failed to load local polygons:", err));
 });
 
 // Caching Geocoding Results to be gentle on Nominatim
@@ -309,7 +315,27 @@ async function plotCitiesOnMap(cities) {
 
         for (let i = 0; i < citiesToProcess.length; i++) {
             const city = citiesToProcess[i];
-            const geoData = geoCache[city];
+
+            // --- HIGH PERFORMANCE LOOKUP ---
+            // If we have it in localGeoData (from eladnava's dataset), use it INSTANTLY
+            let geoData = localGeoData[city] ? localGeoData[city].polygon : null;
+
+            // If it's a "multipolygon" or simple polygon from our JSON, it's just coordinates.
+            // We need to wrap it into a GeoJSON feature.
+            if (geoData) {
+                geoData = {
+                    type: "Feature",
+                    geometry: {
+                        type: "Polygon", // Most are polygons, some might be MultiPolygon but eladnava's usually wraps them
+                        coordinates: geoData
+                    }
+                };
+            }
+
+            // Fallback to existing geoCache (Nominatim results)
+            if (!geoData) {
+                geoData = geoCache[city];
+            }
 
             if (geoData && geoData !== "NOT_FOUND" && geoData !== "NOT_FOUND_AGAIN") {
                 try {
@@ -328,12 +354,14 @@ async function plotCitiesOnMap(cities) {
                     if (layerBounds.isValid()) {
                         bounds.extend(layerBounds);
                         hasValidBounds = true;
+                        // Zoom in if it's the first few cities
                         if (plottedCities.size < 5) map.fitBounds(bounds, { padding: [50, 50], maxZoom: 12 });
                     }
                 } catch (err) {
                     console.error(`Error plotting ${city}`, err);
                 }
-            } else if (!geoData || geoData === "NOT_FOUND") { // Only fetch if not already tried and failed
+            } else if (!geoData || geoData === "NOT_FOUND") {
+                // Only fall back to external geocoding if we really don't have it
                 await fetchMissingCityOnMap(city, bounds, i, citiesToProcess.length);
             }
         }
@@ -419,13 +447,27 @@ async function fetchMissingCityOnMap(city, bounds, index, total) {
 
 // Map Interaction
 function panToCity(cityName) {
-    const geoData = geoCache[cityName];
+    // Try local data first
+    let geoData = localGeoData[cityName] ? localGeoData[cityName].polygon : null;
+
+    if (geoData) {
+        // Wrap for Leaflet
+        const tempLayer = L.geoJSON({
+            type: "Feature",
+            geometry: { type: "Polygon", coordinates: geoData }
+        });
+        if (tempLayer.getBounds().isValid()) {
+            map.fitBounds(tempLayer.getBounds(), { maxZoom: 14, duration: 1.5 });
+            return;
+        }
+    }
+
+    // Fallback to cache
+    geoData = geoCache[cityName];
     if (geoData && geoData !== "NOT_FOUND" && geoData !== "NOT_FOUND_AGAIN") {
         if (geoData.type === "Point") {
-            // Leaflet setView expects [lat, lon], GeoJSON stores [lon, lat]
             map.setView([geoData.coordinates[1], geoData.coordinates[0]], 14, { animate: true, duration: 1.5 });
         } else {
-            // It's a proper GeoJSON polygon
             const tempLayer = L.geoJSON(geoData);
             if (tempLayer.getBounds().isValid()) {
                 map.fitBounds(tempLayer.getBounds(), { maxZoom: 14, duration: 1.5 });
