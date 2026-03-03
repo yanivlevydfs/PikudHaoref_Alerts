@@ -614,7 +614,7 @@ window.addEventListener('beforeinstallprompt', (e) => {
         // Trigger transition
         setTimeout(() => {
             pwaInstallBtn.style.opacity = '1';
-            pwaInstallBtn.style.transform = 'translateX(0)';
+            pwaInstallBtn.style.transform = 'translate(-50%, 0)';
         }, 10);
 
         console.log('PWA: Install prompt available, showing button.');
@@ -623,7 +623,7 @@ window.addEventListener('beforeinstallprompt', (e) => {
         setTimeout(() => {
             if (pwaInstallBtn) {
                 pwaInstallBtn.style.opacity = '0';
-                pwaInstallBtn.style.transform = 'translateX(-20px)';
+                pwaInstallBtn.style.transform = 'translate(-50%, -20px)';
                 setTimeout(() => {
                     pwaInstallBtn.style.display = 'none';
                 }, 500); // Wait for transition
