@@ -90,8 +90,16 @@ def test_proxy(proxy_config):
             proxies=proxies, 
             headers={'User-Agent': OREF_HEADERS['User-Agent']}
         )
-        return response.status_code == 200
-    except Exception:
+        
+        is_good = response.status_code == 200
+        if is_good:
+            logger.info(f"[PROXY TEST] ✅ SUCCESS: Proxy {p_url} ({p_type}) is GOOD! STATUS: {response.status_code}")
+        else:
+            logger.debug(f"[PROXY TEST] ❌ FAILED: Proxy {p_url} returned STATUS {response.status_code}")
+            
+        return is_good
+    except Exception as e:
+        logger.debug(f"[PROXY TEST] ❌ DEAD: Proxy {p_url} threw exception: {e}")
         return False
 
 def fetch_free_proxies():
@@ -217,6 +225,9 @@ def fetch_active_alerts():
         if proxy_config:
             p_url = proxy_config["url"]
             p_type = proxy_config["type"]
+            logger.info(f"++++++++++++++++++++++++++++++++++++++++")
+            logger.info(f"🎯 [ACTIVE PROXY IN USE] -> {p_url} (Type: {p_type})")
+            logger.info(f"++++++++++++++++++++++++++++++++++++++++")
             if p_type == "socks5":
                 proxy_str = f"socks5h://{p_url}"
             elif p_type == "socks4":
