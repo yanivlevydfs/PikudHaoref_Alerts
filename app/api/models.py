@@ -27,3 +27,10 @@ class HistoryResponse(BaseModel):
 class StatisticsResponse(BaseModel):
     message: str
     data: List[Dict[str, Any]]
+
+class GeocodeRequest(BaseModel):
+    cities: List[str] = Field(..., description="List of city names to resolve coordinates for.")
+
+class GeocodeResponse(BaseModel):
+    message: str
+    data: Dict[str, Any] = Field(..., description="Dictionary mapping city name to GeoJSON data.")

@@ -214,3 +214,36 @@ async def get_rss_feed():
     except Exception as e:
         logger.error(f"Failed to generate RSS: {e}")
         raise HTTPException(status_code=500, detail="Internal server error while generating RSS feed.")
+
+from app.api.models import GeocodeRequest, GeocodeResponse
+from app.services.geocode_service import geocode_service
+
+@router.post(
+    "/api/geocode",
+    summary="Resolve coordinates for a list of cities",
+    description="Accepts a list of cities and returns a mapping from city name to its resolved GeoJSON shape. Used as a backend fallback to Nominatim avoiding local browser quota limits.",
+    tags=["Geocoding"],
+    response_model=GeocodeResponse
+)
+async def resolve_cities(request: GeocodeRequest):
+    print("[ROUTE TRACE] Hit /api/geocode")
+    try:
+        print(f"[ROUTE TRACE] Parsed Request: {request.cities}")
+        if not request.cities:
+            print("[ROUTE TRACE] Empty cities list")
+            return {"message": "No cities provided.", "data": {}}
+            
+        logger.info(f"API Request: /api/geocode for {len(request.cities)} cities.")
+        
+        print("[ROUTE TRACE] Calling geocode_service.get_coordinates...")
+        resolved_data = await geocode_service.get_coordinates(request.cities)
+        print("[ROUTE TRACE] Successfully returned from get_coordinates")
+        
+        return {
+            "message": "Cities resolved successfully.",
+            "data": resolved_data
+        }
+    except Exception as e:
+        print(f"[ROUTE TRACE] Exception caught: {e}")
+        logger.error(f"Failed to geocode cities: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error during geocoding.")

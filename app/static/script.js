@@ -204,6 +204,12 @@ $(document).ready(function () {
 });
 
 // Caching Geocoding Results to be gentle on Nominatim
+let cacheVersion = localStorage.getItem('geoCacheVersion');
+if (cacheVersion !== "2") {
+    console.log("Purging old poisoned geocache.");
+    localStorage.removeItem('geoCache');
+    localStorage.setItem('geoCacheVersion', "2");
+}
 let geoCache = JSON.parse(localStorage.getItem('geoCache')) || {};
 
 // --- Helper: Safe LocalStorage Setter ---
@@ -370,63 +376,41 @@ async function plotCitiesOnMap(cities) {
 
         // 2. Queue missing cities
         const citiesToProcess = cities.filter(city => !plottedCities.has(city));
+        let missingCitiesForBackend = [];
 
         for (let i = 0; i < citiesToProcess.length; i++) {
             const city = citiesToProcess[i];
 
-            // --- HIGH PERFORMANCE LOOKUP ---
-            // If we have it in localGeoData (from eladnava's dataset), use it INSTANTLY
             let geoData = localGeoData[city] ? localGeoData[city].polygon : null;
-
-            // If it's a "multipolygon" or simple polygon from our JSON, it's just coordinates.
-            // We need to wrap it into a GeoJSON feature.
             if (geoData) {
+                // localGeoData has [lat, lon] as a single array of points.
+                // GeoJSON Polygon requires coordinates as an array of rings, using [lon, lat]
+                const flippedCoords = geoData.map(coord => [coord[1], coord[0]]);
                 geoData = {
                     type: "Feature",
-                    geometry: {
-                        type: "Polygon", // Most are polygons, some might be MultiPolygon but eladnava's usually wraps them
-                        coordinates: geoData
-                    }
+                    geometry: { type: "Polygon", coordinates: [flippedCoords] }
                 };
             }
 
-            // Fallback to existing geoCache (Nominatim results)
             if (!geoData) {
                 geoData = geoCache[city];
             }
 
-
-
-            // --- Robust Validation Step to catch corrupted LocalStorage data ---
-            let isValidGeo = false;
-            if (geoData && geoData !== "NOT_FOUND" && geoData !== "NOT_FOUND_AGAIN") {
-                isValidGeo = true;
-                if (geoData.type === 'Point') {
-                    if (!geoData.coordinates || !Array.isArray(geoData.coordinates) || geoData.coordinates.length < 2 ||
-                        geoData.coordinates[0] === null || geoData.coordinates[1] === null ||
-                        geoData.coordinates[0] === undefined || geoData.coordinates[1] === undefined ||
-                        isNaN(geoData.coordinates[0]) || isNaN(geoData.coordinates[1])) {
-                        isValidGeo = false;
-                    }
-                } else if (!geoData.type && !geoData.features) {
-                    // Missing basic GeoJSON structure
-                    isValidGeo = false;
-                } else if (geoData.type === 'Polygon' || geoData.type === 'MultiPolygon') {
-                    if (!geoData.coordinates || !Array.isArray(geoData.coordinates) || geoData.coordinates.length === 0) {
-                        isValidGeo = false;
-                    }
-                }
-
-                if (!isValidGeo) {
-                    console.warn(`Corrupted geoData found for ${city}. Forcing refetch.`);
-                    geoData = null; // Re-fetch
-                    delete geoCache[city];
-                    saveGeoCacheSafe();
-                }
-            }
-
-            if (isValidGeo && geoData) {
+            // Valid geoData plot
+            if (geoData && geoData !== "NOT_FOUND" && geoData !== "NOT_FOUND_AGAIN" && geoData !== "ERROR") {
                 try {
+                    if (typeof geoData === 'string') {
+                        try { geoData = JSON.parse(geoData); } catch (e) { }
+                    }
+
+                    // Wrap simple geometries in a Feature object if needed for Leaflet
+                    if (geoData.type && geoData.type !== "Feature" && geoData.type !== "FeatureCollection") {
+                        geoData = {
+                            type: "Feature",
+                            geometry: geoData
+                        };
+                    }
+
                     const layer = L.geoJSON(geoData, {
                         style: { color: "#ff0000", weight: 2, opacity: 1, fillColor: "#ff0000", fillOpacity: 0.3 },
                         pointToLayer: function (feature, latlng) {
@@ -442,18 +426,82 @@ async function plotCitiesOnMap(cities) {
                     if (layerBounds.isValid()) {
                         bounds.extend(layerBounds);
                         hasValidBounds = true;
-                        // Zoom in if it's the first few cities
-                        if (plottedCities.size < 5) map.fitBounds(bounds, { padding: [50, 50], maxZoom: 12 });
                     }
                 } catch (err) {
-                    console.error(`Error plotting ${city}`, err);
-                    delete geoCache[city];
-                    saveGeoCacheSafe();
+                    console.error(`Error plotting local ${city}`, err);
                 }
-            } else if (!geoData || geoData === "NOT_FOUND") {
-                // Only fall back to external geocoding if we really don't have it
-                await fetchMissingCityOnMap(city, bounds, i, citiesToProcess.length);
+            } else if (!geoData) {
+                missingCitiesForBackend.push(city);
             }
+        }
+
+        if (hasValidBounds) map.fitBounds(bounds, { padding: [50, 50], maxZoom: 12 });
+
+        // --- BACKEND GEOCODING ROUTER ---
+        if (missingCitiesForBackend.length > 0) {
+            setStatus('fetching', `מאחזר מיקומים מהשרת...`);
+
+            const fetchPromises = missingCitiesForBackend.map(async (city) => {
+                try {
+                    const response = await fetch('/api/geocode', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ cities: [city] })
+                    });
+
+                    if (response.ok) {
+                        const result = await response.json();
+                        const backendGeoData = (result.data || {})[city];
+
+                        if (!backendGeoData || backendGeoData === "ERROR") return;
+
+                        geoCache[city] = backendGeoData;
+                        saveGeoCacheSafe();
+
+                        if (backendGeoData !== "NOT_FOUND") {
+                            try {
+                                let validGeoData = backendGeoData;
+                                if (typeof validGeoData === 'string') {
+                                    try { validGeoData = JSON.parse(validGeoData); } catch (e) { }
+                                }
+
+                                // Wrap simple geometries in a Feature object if needed
+                                if (validGeoData.type && validGeoData.type !== "Feature" && validGeoData.type !== "FeatureCollection") {
+                                    validGeoData = {
+                                        type: "Feature",
+                                        geometry: validGeoData
+                                    };
+                                }
+
+                                const layer = L.geoJSON(validGeoData, {
+                                    style: { color: "#ff0000", weight: 2, opacity: 1, fillColor: "#ff0000", fillOpacity: 0.3 },
+                                    pointToLayer: function (feature, latlng) {
+                                        return L.circleMarker(latlng, { radius: 8, fillColor: "#ff0000", color: "#ffffff", weight: 1, opacity: 1, fillOpacity: 0.8 });
+                                    }
+                                }).addTo(markersLayer);
+
+                                layer._cityName = city;
+                                layer.bindTooltip(city, { direction: 'center', className: 'custom-tooltip' });
+                                plottedCities.add(city);
+
+                                const layerBounds = layer.getBounds();
+                                if (layerBounds.isValid()) {
+                                    bounds.extend(layerBounds);
+                                    hasValidBounds = true;
+                                    // Update the map dynamically as results come in
+                                    map.fitBounds(bounds, { padding: [50, 50], maxZoom: 12 });
+                                }
+                            } catch (err) {
+                                console.error(`Error plotting backend returned ${city}`, err);
+                            }
+                        }
+                    }
+                } catch (err) {
+                    console.error(`[GEO] Backend routing failed for ${city}:`, err);
+                }
+            });
+
+            await Promise.allSettled(fetchPromises);
         }
 
         if (hasValidBounds) map.fitBounds(bounds, { padding: [50, 50], maxZoom: 12 });
@@ -463,104 +511,19 @@ async function plotCitiesOnMap(cities) {
     }
 }
 
-async function fetchMissingCityOnMap(city, bounds, index, total) {
-    let searchCity = city.split('-')[0].trim();
-    if (searchCity.includes("אזור תעשייה") || searchCity.includes("פארק תעשיות") || searchCity.startsWith("רחוב")) {
-        searchCity = city.replace(/-/g, " ").trim();
-    }
-    searchCity = searchCity.replace(/^רחוב\s+/g, "").replace(/^שדרות\s+(?!(השביעית|הציונות|ירושלים))/g, "").replace(/^פארק\s+/g, "").replace("בי\"ס", "").trim();
-
-    // Rate limiting progress update in console so user knows we are working
-    if (index % 10 === 0) setStatus('fetching', `מאחזר מיקום: ${index + 1}/${total}...`);
-
-    await new Promise(r => setTimeout(r, 1000)); // Respect Nominatim limits
-
-    try {
-        const baseUrl = "https://nominatim.openstreetmap.org/search?format=json&polygon_geojson=1&limit=1&countrycodes=il&accept-language=he&addressdetails=1";
-        let res = await fetch(`${baseUrl}&q=${encodeURIComponent(searchCity)}`, {
-            headers: { 'User-Agent': 'PikudHaoref_Alerts_Webapp/1.2' }
-        });
-        let json = await res.json();
-
-        if (json.length === 0 && searchCity.split(' ').length > 1) {
-            const lastWord = searchCity.split(' ').pop();
-            await new Promise(r => setTimeout(r, 1000));
-            res = await fetch(`${baseUrl}&q=${encodeURIComponent(lastWord)}`);
-            json = await res.json();
-        }
-
-        let fetchedData = null;
-        if (json && json.length > 0) {
-            const result = json[0];
-            const allowedClasses = ['place', 'boundary'];
-            const forbiddenTypes = ['highway', 'street', 'road', 'footway', 'residential', 'service'];
-            if (allowedClasses.includes(result.class) && !forbiddenTypes.includes(result.type)) {
-                if (result.geojson) {
-                    fetchedData = result.geojson;
-                } else if (result.lat && result.lon) {
-                    let latNum = parseFloat(result.lat);
-                    let lonNum = parseFloat(result.lon);
-
-                    if (!isNaN(latNum) && !isNaN(lonNum)) {
-                        // Critical Fix: Leaflet GeoJSON Point coordinates are [longitude, latitude]
-                        fetchedData = {
-                            "type": "Point",
-                            "coordinates": [lonNum, latNum]
-                        };
-                    }
-                }
-            }
-        }
-
-        if (fetchedData) {
-            geoCache[city] = fetchedData;
-            saveGeoCacheSafe();
-            const asyncLayer = L.geoJSON(fetchedData, {
-                style: { color: "#ff0000", weight: 2, opacity: 1, fillColor: "#ff0000", fillOpacity: 0.3 },
-                pointToLayer: function (feature, latlng) {
-                    // Safe point generation
-                    return L.circleMarker(latlng, { radius: 8, fillColor: "#ff0000", color: "#ffffff", weight: 1, opacity: 1, fillOpacity: 0.8 });
-                }
-            }).addTo(markersLayer);
-
-            asyncLayer._cityName = city;
-            asyncLayer.bindTooltip(city, { direction: 'center', className: 'custom-tooltip' });
-            plottedCities.add(city);
-
-            let lb = null;
-            if (typeof asyncLayer.getBounds === 'function') {
-                lb = asyncLayer.getBounds();
-            } else if (typeof asyncLayer.getLatLng === 'function') {
-                const ll = asyncLayer.getLatLng();
-                lb = L.latLngBounds(ll, ll);
-            }
-
-            if (lb && lb.isValid()) {
-                bounds.extend(lb);
-                if (plottedCities.size < 5 || plottedCities.size % 10 === 0) {
-                    map.fitBounds(bounds, { padding: [60, 60], maxZoom: 12, animate: true });
-                }
-            }
-        } else {
-            geoCache[city] = "NOT_FOUND_AGAIN";
-        }
-        localStorage.setItem('geoCache_v5', JSON.stringify(geoCache));
-    } catch (err) {
-        console.warn(`[GEO-FETCH-FAIL] ${city}: ${err.message}`);
-        // Don't mark as NOT_FOUND_AGAIN, let it retry on next poll if it was a network error
-    }
-}
-
 // Map Interaction
 function panToCity(cityName) {
     // Try local data first
     let geoData = localGeoData[cityName] ? localGeoData[cityName].polygon : null;
 
     if (geoData) {
+        // localGeoData has [lat, lon], GeoJSON needs [lon, lat] and a nested array for Polygon ring
+        const flippedCoords = geoData.map(coord => [coord[1], coord[0]]);
+
         // Wrap for Leaflet
         const tempLayer = L.geoJSON({
             type: "Feature",
-            geometry: { type: "Polygon", coordinates: geoData }
+            geometry: { type: "Polygon", coordinates: [flippedCoords] }
         });
         if (tempLayer.getBounds().isValid()) {
             map.fitBounds(tempLayer.getBounds(), { maxZoom: 14, duration: 1.5 });
@@ -570,11 +533,22 @@ function panToCity(cityName) {
 
     // Fallback to cache
     geoData = geoCache[cityName];
-    if (geoData && geoData !== "NOT_FOUND" && geoData !== "NOT_FOUND_AGAIN") {
+    if (geoData && geoData !== "NOT_FOUND" && geoData !== "NOT_FOUND_AGAIN" && geoData !== "ERROR") {
+        if (typeof geoData === 'string') {
+            try { geoData = JSON.parse(geoData); } catch (e) { }
+        }
+
         if (geoData.type === "Point") {
             map.setView([geoData.coordinates[1], geoData.coordinates[0]], 14, { animate: true, duration: 1.5 });
         } else {
-            const tempLayer = L.geoJSON(geoData);
+            let validGeoData = geoData;
+            if (validGeoData.type && validGeoData.type !== "Feature" && validGeoData.type !== "FeatureCollection") {
+                validGeoData = {
+                    type: "Feature",
+                    geometry: validGeoData
+                };
+            }
+            const tempLayer = L.geoJSON(validGeoData);
             if (tempLayer.getBounds().isValid()) {
                 map.fitBounds(tempLayer.getBounds(), { maxZoom: 14, duration: 1.5 });
             }

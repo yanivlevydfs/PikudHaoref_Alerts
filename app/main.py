@@ -10,6 +10,7 @@ from app.services.oref_client import fetch_active_alerts
 from app.services.alert_state import global_alert_state
 from app.db.database import init_db, insert_alert_if_new
 import os
+from app.services.geocode_service import geocode_service
 
 # Initialize Logger
 logger = setup_logging()
@@ -125,6 +126,14 @@ app.mount("/static", StaticFiles(directory=static_dir), name="static")
 # Include API routes
 app.include_router(api_router)
 
+@app.on_event("startup")
+async def startup():
+    await geocode_service.start()
+
+@app.on_event("shutdown")
+async def shutdown():
+    await geocode_service.close()
+    
 @app.get("/", include_in_schema=False)
 async def root(request: Request):
     """
