@@ -87,8 +87,8 @@ def test_proxy(proxy_config):
     proxies = {"http": proxy_str, "https": proxy_str}
     
     try:
-        # 5s timeout - fast-fail dead proxies to keep the scheduler responsive (Railway Optimization)
-        response = requests.get(url, timeout=5, proxies=proxies, headers=OREF_HEADERS)
+        # 15s timeout - Reverting to 15s because 5s was too aggressive for free proxies (Railway Resilience)
+        response = requests.get(url, timeout=15, proxies=proxies, headers=OREF_HEADERS)
         return response.status_code == 200
     except Exception:
         return False
@@ -97,11 +97,16 @@ def get_working_proxy(force_refresh=False):
     """
     Returns a working proxy from the list, testing them in parallel.
     """
-    global _working_proxy, _last_proxy_check
-    
     now = time.time()
     if not force_refresh and _working_proxy and (now - _last_proxy_check < PROXY_CACHE_TTL):
         logger.info(f"Reusing working proxy: {_working_proxy['url']} (Cached)")
+        return _working_proxy
+
+    # 1. Check for Manual Override (Highest Priority)
+    manual_proxy = os.getenv("MANUAL_PROXY")
+    if manual_proxy:
+        logger.info(f"Using MANUAL PROXY override: {manual_proxy}")
+        _working_proxy = {"url": manual_proxy, "type": "http"} # Assume http for manual string
         return _working_proxy
 
     logger.info("Testing Israeli proxies in parallel to find a working one...")
