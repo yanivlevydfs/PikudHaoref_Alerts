@@ -998,14 +998,9 @@ h3 {
     font-family: var(--font-heading);
 }
 
-/* Ensure leaflet controls are above the footer */
+/* Ensure leaflet controls are above the footer on desktop */
 .leaflet-bottom {
     bottom: 35px !important;
-}
-
-/* Ensure leaflet controls are above the bottom sheet in mini state */
-.leaflet-bottom {
-    bottom: 80px !important;
     transition: bottom 0.3s ease;
 }
 
@@ -1134,14 +1129,21 @@ h3 {
         /* Already have header */
     }
 
-    .leaflet-control-zoom {
-        bottom: 140px !important;
-        /* Above mini sheet */
+    /* Lift controls above the 130px mini-sheet */
+    .leaflet-bottom {
+        bottom: 145px !important;
     }
 
-    .sidebar.active~.map-area .leaflet-control-zoom {
+    .custom-controls-group {
+        margin-top: 25px !important;
+        /* Forces the empty line on mobile */
+    }
+
+    .sidebar.active~.map-area .leaflet-control-zoom,
+    .sidebar.active~.map-area .custom-controls-group {
         opacity: 0;
         /* Hide when sheet is full screen */
+        pointer-events: none;
     }
 }
 

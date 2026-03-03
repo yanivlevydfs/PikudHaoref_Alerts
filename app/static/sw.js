@@ -1,8 +1,8 @@
-const CACHE_NAME = 'pikud-haoref-cache-v5';
+const CACHE_NAME = 'pikud-haoref-cache-v15';
 const ASSETS_TO_CACHE = [
   '/',
-  '/static/style.css?v=5',
-  '/static/script.js?v=5',
+  '/static/style.css?v=15',
+  '/static/script.js?v=15',
   'https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Inter:wght@400;600&display=swap',
   'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css',
   'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js',
@@ -41,13 +41,15 @@ self.addEventListener('fetch', (event) => {
   }
 
   event.respondWith(
-    caches.match(event.request)
-      .then((response) => {
-        // Return cached response if found, otherwise fetch from network
-        return response || fetch(event.request).then((fetchResponse) => {
-          // Optional: dynamically cache new assets here if needed
-          return fetchResponse;
-        });
+    // Network-first strategy for our own files to ensure updates
+    fetch(event.request)
+      .then((networkResponse) => {
+        // Just return the fresh response
+        return networkResponse;
+      })
+      .catch(() => {
+        // If network fails (offline), try the cache
+        return caches.match(event.request);
       })
   );
 });

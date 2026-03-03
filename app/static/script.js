@@ -204,7 +204,20 @@ $(document).ready(function () {
 });
 
 // Caching Geocoding Results to be gentle on Nominatim
-const geoCache = JSON.parse(localStorage.getItem('geoCache_v5')) || {};
+let geoCache = JSON.parse(localStorage.getItem('geoCache')) || {};
+
+// --- Helper: Safe LocalStorage Setter ---
+const saveGeoCacheSafe = () => {
+    try {
+        localStorage.setItem('geoCache', JSON.stringify(geoCache));
+    } catch (e) {
+        if (e.name === 'QuotaExceededError' || e.name === 'NS_ERROR_DOM_QUOTA_REACHED') {
+            console.warn("LocalStorage Quota Exceeded. Clearing geoCache.");
+            localStorage.removeItem('geoCache');
+            geoCache = {}; // Reset in memory
+        }
+    }
+};
 
 // Helpers
 function setStatus(state, text) {
@@ -382,7 +395,37 @@ async function plotCitiesOnMap(cities) {
                 geoData = geoCache[city];
             }
 
+
+
+            // --- Robust Validation Step to catch corrupted LocalStorage data ---
+            let isValidGeo = false;
             if (geoData && geoData !== "NOT_FOUND" && geoData !== "NOT_FOUND_AGAIN") {
+                isValidGeo = true;
+                if (geoData.type === 'Point') {
+                    if (!geoData.coordinates || !Array.isArray(geoData.coordinates) || geoData.coordinates.length < 2 ||
+                        geoData.coordinates[0] === null || geoData.coordinates[1] === null ||
+                        geoData.coordinates[0] === undefined || geoData.coordinates[1] === undefined ||
+                        isNaN(geoData.coordinates[0]) || isNaN(geoData.coordinates[1])) {
+                        isValidGeo = false;
+                    }
+                } else if (!geoData.type && !geoData.features) {
+                    // Missing basic GeoJSON structure
+                    isValidGeo = false;
+                } else if (geoData.type === 'Polygon' || geoData.type === 'MultiPolygon') {
+                    if (!geoData.coordinates || !Array.isArray(geoData.coordinates) || geoData.coordinates.length === 0) {
+                        isValidGeo = false;
+                    }
+                }
+
+                if (!isValidGeo) {
+                    console.warn(`Corrupted geoData found for ${city}. Forcing refetch.`);
+                    geoData = null; // Re-fetch
+                    delete geoCache[city];
+                    saveGeoCacheSafe();
+                }
+            }
+
+            if (isValidGeo && geoData) {
                 try {
                     const layer = L.geoJSON(geoData, {
                         style: { color: "#ff0000", weight: 2, opacity: 1, fillColor: "#ff0000", fillOpacity: 0.3 },
@@ -404,6 +447,8 @@ async function plotCitiesOnMap(cities) {
                     }
                 } catch (err) {
                     console.error(`Error plotting ${city}`, err);
+                    delete geoCache[city];
+                    saveGeoCacheSafe();
                 }
             } else if (!geoData || geoData === "NOT_FOUND") {
                 // Only fall back to external geocoding if we really don't have it
@@ -450,16 +495,32 @@ async function fetchMissingCityOnMap(city, bounds, index, total) {
             const allowedClasses = ['place', 'boundary'];
             const forbiddenTypes = ['highway', 'street', 'road', 'footway', 'residential', 'service'];
             if (allowedClasses.includes(result.class) && !forbiddenTypes.includes(result.type)) {
-                if (result.geojson) fetchedData = result.geojson;
-                else if (result.lat && result.lon) fetchedData = { type: "Point", coordinates: [parseFloat(result.lon), parseFloat(result.lat)] };
+                if (result.geojson) {
+                    fetchedData = result.geojson;
+                } else if (result.lat && result.lon) {
+                    let latNum = parseFloat(result.lat);
+                    let lonNum = parseFloat(result.lon);
+
+                    if (!isNaN(latNum) && !isNaN(lonNum)) {
+                        // Critical Fix: Leaflet GeoJSON Point coordinates are [longitude, latitude]
+                        fetchedData = {
+                            "type": "Point",
+                            "coordinates": [lonNum, latNum]
+                        };
+                    }
+                }
             }
         }
 
         if (fetchedData) {
             geoCache[city] = fetchedData;
+            saveGeoCacheSafe();
             const asyncLayer = L.geoJSON(fetchedData, {
                 style: { color: "#ff0000", weight: 2, opacity: 1, fillColor: "#ff0000", fillOpacity: 0.3 },
-                pointToLayer: function (feature, latlng) { return L.circleMarker(latlng, { radius: 8, fillColor: "#ff0000", color: "#ffffff", weight: 1, opacity: 1, fillOpacity: 0.8 }); }
+                pointToLayer: function (feature, latlng) {
+                    // Safe point generation
+                    return L.circleMarker(latlng, { radius: 8, fillColor: "#ff0000", color: "#ffffff", weight: 1, opacity: 1, fillOpacity: 0.8 });
+                }
             }).addTo(markersLayer);
 
             asyncLayer._cityName = city;
