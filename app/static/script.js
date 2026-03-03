@@ -11,30 +11,6 @@ const map = L.map('map', {
 // Move zoom controls
 L.control.zoom({ position: 'bottomleft' }).addTo(map);
 
-// Custom Reset Zoom/Bounds Button
-const resetZoomControl = L.control({ position: 'bottomleft' });
-resetZoomControl.onAdd = function (map) {
-    const container = L.DomUtil.create('div', 'leaflet-bar leaflet-control');
-    const button = L.DomUtil.create('a', 'leaflet-control-reset-zoom', container);
-    button.innerHTML = '⟲';
-    button.href = '#';
-    button.title = 'אפס תצוגת מפה'; // "Reset Map View" in Hebrew
-    button.style.fontSize = '1.2rem';
-    button.style.fontWeight = 'bold';
-    button.style.display = 'flex';
-    button.style.alignItems = 'center';
-    button.style.justifyContent = 'center';
-
-    L.DomEvent.on(button, 'click', function (e) {
-        L.DomEvent.stopPropagation(e);
-        L.DomEvent.preventDefault(e);
-        map.fitBounds(israelBounds);
-    });
-
-    return container;
-};
-resetZoomControl.addTo(map);
-
 // Define Map Themes
 const darkTileLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
@@ -43,7 +19,7 @@ const darkTileLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z
 });
 
 const lightTileLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+    attribution: '&copy; <a href="https://www.openstreetmap.com/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
     subdomains: 'abcd',
     maxZoom: 20
 });
@@ -56,21 +32,23 @@ if (currentMapTheme === 'light') {
     darkTileLayer.addTo(map);
 }
 
-// Custom Map Theme Toggle Button
-const themeToggleControl = L.control({ position: 'bottomleft' });
-themeToggleControl.onAdd = function (map) {
-    const container = L.DomUtil.create('div', 'leaflet-bar leaflet-control');
-    const button = L.DomUtil.create('a', 'leaflet-control-theme-toggle', container);
-    button.innerHTML = currentMapTheme === 'dark' ? '☀️' : '🌙';
-    button.href = '#';
-    button.title = 'שנה תצוגת מפה (בהיר/כהה)'; // "Toggle Map Theme" in Hebrew
-    button.style.fontSize = '1.2rem';
-    button.style.fontWeight = 'bold';
-    button.style.display = 'flex';
-    button.style.alignItems = 'center';
-    button.style.justifyContent = 'center';
+// Custom Leaflet Controls Group (Theme Toggle & Reset Zoom)
+const customControls = L.control({ position: 'bottomleft' });
+customControls.onAdd = function (map) {
+    const container = L.DomUtil.create('div', 'leaflet-bar leaflet-control custom-controls-group');
 
-    L.DomEvent.on(button, 'click', function (e) {
+    // 1. Theme Toggle Button
+    const themeBtn = L.DomUtil.create('a', 'leaflet-control-theme-toggle', container);
+    themeBtn.innerHTML = currentMapTheme === 'dark' ? '☀️' : '🌙';
+    themeBtn.href = '#';
+    themeBtn.title = 'שנה תצוגת מפה (בהיר/כהה)'; // "Toggle Map Theme" in Hebrew
+    themeBtn.style.fontSize = '1.2rem';
+    themeBtn.style.fontWeight = 'bold';
+    themeBtn.style.display = 'flex';
+    themeBtn.style.alignItems = 'center';
+    themeBtn.style.justifyContent = 'center';
+
+    L.DomEvent.on(themeBtn, 'click', function (e) {
         L.DomEvent.stopPropagation(e);
         L.DomEvent.preventDefault(e);
 
@@ -78,19 +56,36 @@ themeToggleControl.onAdd = function (map) {
             map.removeLayer(darkTileLayer);
             lightTileLayer.addTo(map);
             currentMapTheme = 'light';
-            button.innerHTML = '🌙';
+            themeBtn.innerHTML = '🌙';
         } else {
             map.removeLayer(lightTileLayer);
             darkTileLayer.addTo(map);
             currentMapTheme = 'dark';
-            button.innerHTML = '☀️';
+            themeBtn.innerHTML = '☀️';
         }
         localStorage.setItem('setting_map_theme', currentMapTheme);
     });
 
+    // 2. Reset Zoom/Bounds Button
+    const resetBtn = L.DomUtil.create('a', 'leaflet-control-reset-zoom', container);
+    resetBtn.innerHTML = '⟲';
+    resetBtn.href = '#';
+    resetBtn.title = 'אפס תצוגת מפה'; // "Reset Map View" in Hebrew
+    resetBtn.style.fontSize = '1.2rem';
+    resetBtn.style.fontWeight = 'bold';
+    resetBtn.style.display = 'flex';
+    resetBtn.style.alignItems = 'center';
+    resetBtn.style.justifyContent = 'center';
+
+    L.DomEvent.on(resetBtn, 'click', function (e) {
+        L.DomEvent.stopPropagation(e);
+        L.DomEvent.preventDefault(e);
+        map.fitBounds(israelBounds);
+    });
+
     return container;
 };
-themeToggleControl.addTo(map);
+customControls.addTo(map);
 
 // State variables
 let currentAlertId = null;
