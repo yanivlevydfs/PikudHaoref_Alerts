@@ -23,7 +23,8 @@ body {
     font-family: var(--font-body);
     display: flex;
     flex-direction: column;
-    height: 100vh;
+    height: 100dvh;
+    /* Use dynamic viewport height for mobile browsers */
     overflow: hidden;
     /* Prevent body scroll during map interactions */
 }
@@ -992,7 +993,7 @@ h3 {
     .dashboard-container {
         flex-direction: column-reverse;
         /* Map on top, Sheet on bottom */
-        height: 100vh;
+        height: 100dvh;
         width: 100vw;
         position: relative;
     }
@@ -1035,12 +1036,10 @@ h3 {
     /* The Bottom Sheet */
     .sidebar {
         position: fixed;
-        bottom: -72%;
-        /* Initially showing only the mini state */
+        bottom: 0;
         left: 0;
         width: 100%;
-        height: 80%;
-        /* Full height when expanded */
+        height: 85dvh;
         z-index: 1001;
         border-right: none;
         border-top: 1px solid var(--border-glass);
@@ -1050,28 +1049,13 @@ h3 {
         transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.1);
         display: flex;
         flex-direction: column;
-    }
-
-    .sidebar.expanded {
-        transform: translateY(-90%);
-        /* Adjust based on where we want it to sit */
-    }
-
-    /* Use a simple fixed state for now to avoid JS translate complexity unless needed */
-    .sidebar.active {
-        bottom: 0px !important;
-        height: 85vh;
-    }
-
-    /* Default mini-state height approx 130px */
-    .sidebar {
-        bottom: auto;
-        top: calc(100vh - 130px);
-        height: 100vh;
+        transform: translateY(calc(100% - 130px));
+        top: auto;
+        /* Override desktop top:0 if any */
     }
 
     .sidebar.active {
-        top: 15vh;
+        transform: translateY(0);
     }
 
     .sheet-handle {
