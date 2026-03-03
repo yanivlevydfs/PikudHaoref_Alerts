@@ -35,12 +35,62 @@ resetZoomControl.onAdd = function (map) {
 };
 resetZoomControl.addTo(map);
 
-// Add Dark Matter CartoDB Basemap
-L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+// Define Map Themes
+const darkTileLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
     subdomains: 'abcd',
     maxZoom: 20
-}).addTo(map);
+});
+
+const lightTileLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+    subdomains: 'abcd',
+    maxZoom: 20
+});
+
+// Load preferred theme
+let currentMapTheme = localStorage.getItem('setting_map_theme') || 'dark';
+if (currentMapTheme === 'light') {
+    lightTileLayer.addTo(map);
+} else {
+    darkTileLayer.addTo(map);
+}
+
+// Custom Map Theme Toggle Button
+const themeToggleControl = L.control({ position: 'bottomleft' });
+themeToggleControl.onAdd = function (map) {
+    const container = L.DomUtil.create('div', 'leaflet-bar leaflet-control');
+    const button = L.DomUtil.create('a', 'leaflet-control-theme-toggle', container);
+    button.innerHTML = currentMapTheme === 'dark' ? '☀️' : '🌙';
+    button.href = '#';
+    button.title = 'שנה תצוגת מפה (בהיר/כהה)'; // "Toggle Map Theme" in Hebrew
+    button.style.fontSize = '1.2rem';
+    button.style.fontWeight = 'bold';
+    button.style.display = 'flex';
+    button.style.alignItems = 'center';
+    button.style.justifyContent = 'center';
+
+    L.DomEvent.on(button, 'click', function (e) {
+        L.DomEvent.stopPropagation(e);
+        L.DomEvent.preventDefault(e);
+
+        if (currentMapTheme === 'dark') {
+            map.removeLayer(darkTileLayer);
+            lightTileLayer.addTo(map);
+            currentMapTheme = 'light';
+            button.innerHTML = '🌙';
+        } else {
+            map.removeLayer(lightTileLayer);
+            darkTileLayer.addTo(map);
+            currentMapTheme = 'dark';
+            button.innerHTML = '☀️';
+        }
+        localStorage.setItem('setting_map_theme', currentMapTheme);
+    });
+
+    return container;
+};
+themeToggleControl.addTo(map);
 
 // State variables
 let currentAlertId = null;

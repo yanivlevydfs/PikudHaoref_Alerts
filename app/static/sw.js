@@ -1,8 +1,8 @@
-const CACHE_NAME = 'pikud-haoref-cache-v2';
+const CACHE_NAME = 'pikud-haoref-cache-v3';
 const ASSETS_TO_CACHE = [
   '/',
-  '/static/style.css?v=2',
-  '/static/script.js?v=2',
+  '/static/style.css?v=3',
+  '/static/script.js?v=3',
   'https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Inter:wght@400;600&display=swap',
   'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css',
   'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js',

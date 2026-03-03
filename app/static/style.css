@@ -337,6 +337,37 @@ h3 {
     color: #ffd6d6;
 }
 
+/* Custom Leaflet Controls (Zoom reset, Theme toggle) */
+.leaflet-control-reset-zoom,
+.leaflet-control-theme-toggle {
+    width: 34px !important;
+    height: 34px !important;
+    line-height: 34px !important;
+    text-align: center;
+    text-decoration: none;
+    color: #eaeaea !important;
+    background-color: rgba(30, 30, 36, 0.9) !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.2) !important;
+    border-radius: 4px;
+    /* Optional: gives it a slightly softer edge, match standard leaflet if preferred */
+    font-size: 1.2rem !important;
+    font-weight: bold;
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+}
+
+.leaflet-control-reset-zoom:hover,
+.leaflet-control-theme-toggle:hover {
+    background-color: rgba(50, 50, 60, 0.95) !important;
+    color: #ffffff !important;
+    transform: translateY(-1px);
+}
+
 /* Expander & List Styles */
 .locations-expander {
     margin-top: 15px;
