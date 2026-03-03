@@ -1103,3 +1103,81 @@ h3 {
         /* Hide when sheet is full screen */
     }
 }
+
+/* PWA Install Button */
+.pwa-install-btn {
+    position: fixed;
+    bottom: 30px;
+    left: 20px;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 24px;
+    background: rgba(255, 59, 59, 0.15);
+    backdrop-filter: blur(16px) saturate(180%);
+    -webkit-backdrop-filter: blur(16px) saturate(180%);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 50px;
+    color: white;
+    font-weight: 700;
+    font-size: 1.1rem;
+    cursor: pointer;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    animation: pwaSlideIn 0.8s backwards, pwaPulse 2s infinite 2s;
+    white-space: nowrap;
+}
+
+.pwa-install-btn:hover {
+    transform: scale(1.08) translateY(-5px);
+    background: rgba(255, 59, 59, 0.25);
+    box-shadow: 0 12px 40px rgba(255, 59, 59, 0.25);
+    border-color: rgba(255, 59, 59, 0.4);
+}
+
+.pwa-install-btn:active {
+    transform: scale(0.95);
+}
+
+.pwa-icon {
+    font-size: 1.4rem;
+    filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.4));
+}
+
+@keyframes pwaSlideIn {
+    from {
+        opacity: 0;
+        transform: translateX(-50px) scale(0.8);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateX(0) scale(1);
+    }
+}
+
+@keyframes pwaPulse {
+    0% {
+        box-shadow: 0 0 0 0 rgba(255, 59, 59, 0.4);
+    }
+
+    70% {
+        box-shadow: 0 0 0 15px rgba(255, 59, 59, 0);
+    }
+
+    100% {
+        box-shadow: 0 0 0 0 rgba(255, 59, 59, 0);
+    }
+}
+
+/* On mobile, adjust position to not overlap with sheet handle */
+@media (max-width: 768px) {
+    .pwa-install-btn {
+        bottom: 150px;
+        /* Above the collapsed bottom sheet */
+        left: 15px;
+        padding: 12px 20px;
+        font-size: 1rem;
+    }
+}

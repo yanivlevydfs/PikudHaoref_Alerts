@@ -597,3 +597,56 @@ function showDesktopNotification(title, body) {
 fetchAlerts();
 fetchHistory();
 // Polling is now handled inside fetchAlerts with setTimeout for adaptive rates
+
+// --- PWA Installation Logic ---
+let deferredPrompt;
+const pwaInstallBtn = document.getElementById('pwa-install-btn');
+
+window.addEventListener('beforeinstallprompt', (e) => {
+    // Prevent the mini-infobar from appearing on mobile
+    e.preventDefault();
+    // Stash the event so it can be triggered later.
+    deferredPrompt = e;
+
+    // Show the install button
+    if (pwaInstallBtn) {
+        pwaInstallBtn.style.display = 'flex';
+        console.log('PWA: Install prompt available, showing button.');
+
+        // Auto-hide after 7 seconds
+        setTimeout(() => {
+            if (pwaInstallBtn) {
+                pwaInstallBtn.style.opacity = '0';
+                pwaInstallBtn.style.transform = 'translateX(-20px)';
+                setTimeout(() => {
+                    pwaInstallBtn.style.display = 'none';
+                }, 500); // Wait for transition
+            }
+        }, 7000);
+    }
+});
+
+if (pwaInstallBtn) {
+    pwaInstallBtn.addEventListener('click', async () => {
+        if (!deferredPrompt) return;
+
+        // Show the install prompt
+        deferredPrompt.prompt();
+
+        // Wait for the user to respond to the prompt
+        const { outcome } = await deferredPrompt.userChoice;
+        console.log(`PWA: User response to install prompt: ${outcome}`);
+
+        // We've used the prompt, and can't use it again, throw it away
+        deferredPrompt = null;
+
+        // Hide the button
+        pwaInstallBtn.style.display = 'none';
+    });
+}
+
+window.addEventListener('appinstalled', () => {
+    // Log install to analytics or hide UI
+    console.log('PWA: App was installed successfully.');
+    if (pwaInstallBtn) pwaInstallBtn.style.display = 'none';
+});
