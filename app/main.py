@@ -8,7 +8,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from app.core.config import APP_CONFIG
 from app.services.oref_client import fetch_active_alerts
 from app.services.alert_state import global_alert_state
-from app.db.database import init_db, insert_alert_if_new
+from app.db.database import init_db, insert_alert_if_new, get_all_unique_cities
 import os
 from app.services.geocode_service import geocode_service
 
@@ -49,6 +49,42 @@ def scheduled_job():
         logger.info(f"ADAPTIVE POLLING: Shigra (Routine). Relaxing polling interval to {APP_CONFIG['scheduler']['routine_interval_seconds']} seconds.")
         scheduler.reschedule_job('fetch_alerts_job', trigger='interval', seconds=APP_CONFIG['scheduler']['routine_interval_seconds'])
 
+def geocode_missing_cities_job():
+    """
+    Background worker that slowly populates missing geolocations.
+    1. Fetches all unique places ever recorded in the database.
+    2. Checks the geo_cache to see which ones are missing.
+    3. Feeds a small batch (e.g. 5) to the GeocodeService to avoid rate-limits.
+    """
+    import asyncio
+    
+    unique_cities = get_all_unique_cities()
+    cached_cities = geocode_service.cache.keys()
+    
+    missing_cities = [city for city in unique_cities if city not in cached_cities]
+    
+    if not missing_cities:
+        # Avoid spamming logs if everything is fully geocoded
+        return
+        
+    logger.info(f"[GEO BG] Found {len(missing_cities)} total missing geolocations in the database.")
+    
+    # Process just a small batch (e.g. 5 at a time) to stay far under Nominatim limits
+    batch = missing_cities[:5]
+    logger.info(f"[GEO BG] Processing batch: {batch}")
+    
+    # We must run the async function in a sync wrapper since APScheduler is sync here
+    async def feed_geocode_service():
+        await geocode_service.get_coordinates(batch)
+        
+    try:
+        # If there's an existing event loop, use run_coroutine_threadsafe 
+        # But in a standard background thread, asyncio.run is usually fine
+        asyncio.run(feed_geocode_service())
+        logger.info(f"[GEO BG] Successfully processed batch of {len(batch)} cities.")
+    except Exception as e:
+        logger.error(f"[GEO BG] Error running geocode batch: {e}")
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Ensure database is prepared
@@ -66,6 +102,17 @@ async def lifespan(app: FastAPI):
         max_instances=3,    # Allow multiple attempts to overlap during recovery
         coalesce=True,       # Combine multiple pending runs into one
         misfire_grace_time=15
+    )
+    
+    # Add the relaxed Geocode worker (Runs every 3 minutes)
+    scheduler.add_job(
+        geocode_missing_cities_job,
+        'interval',
+        minutes=3,
+        id='geocode_missing_cities_job',
+        replace_existing=True,
+        max_instances=1, # Only 1 geocode job at a time
+        coalesce=True
     )
     
     # Start the scheduler

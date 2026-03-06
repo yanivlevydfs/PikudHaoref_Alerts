@@ -193,6 +193,30 @@ def get_alert_statistics(timeframe="24h"):
         logger.error(f"Error fetching alert statistics: {e}")
         return []
 
+def get_all_unique_cities():
+    """
+    Fetches a flat list of all unique cities/places ever intercepted and stored in the database.
+    This serves as the master list for the background geocoding service.
+    """
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            
+            # json_each unpacking gives us individual city strings flatly
+            query = '''
+                SELECT DISTINCT j.value as city
+                FROM alerts, json_each(alerts.locations_json) as j
+            '''
+            cursor.execute(query)
+            
+            rows = cursor.fetchall()
+            cities = [row["city"] for row in rows if row["city"]]
+            return cities
+            
+    except Exception as e:
+        logger.error(f"Error fetching all unique cities: {e}")
+        return []
+
 def set_system_state(key, value):
     """
     Atomically updates or inserts a system state key-value pair.
