@@ -43,3 +43,11 @@ class GeolocationCity(BaseModel):
 class GeolocationsResponse(BaseModel):
     message: str
     data: List[GeolocationCity]
+
+class QuietTimeItem(BaseModel):
+    hour: str
+    count: int
+
+class QuietTimesResponse(BaseModel):
+    message: str
+    data: List[QuietTimeItem]

@@ -9,7 +9,16 @@ logger = logging.getLogger(__name__)
 # Global session to persist cookies and connection
 session = requests.Session()
 
-from app.core.config import APP_CONFIG
+def reset_session():
+    """
+    Creates a fresh requests Session to clear any stuck connections or corrupted states.
+    Useful when a proxy dies and we want to ensure the next attempt is totally clean.
+    """
+    global session
+    logger.info("♻️ Resetting Oref Client Session (Connection Pool Purge)...")
+    session = requests.Session()
+
+from app.core.config import get_config
 
 # Common headers for Oref
 OREF_HEADERS = {
@@ -39,8 +48,9 @@ def fetch_active_alerts():
     home_url = "https://www.oref.org.il/"
     headers = OREF_HEADERS
     
-    # Get proxy config from global APP_CONFIG
-    proxy_config = APP_CONFIG.get("proxy")
+    # Dynamically load the latest configuration (Hot-swappable Proxies)
+    current_config = get_config()
+    proxy_config = current_config.get("proxy")
     
     # Check if running on Railway
     is_railway = os.getenv("RAILWAY_ENVIRONMENT") is not None
@@ -73,6 +83,8 @@ def fetch_active_alerts():
             return response
         except Exception as e:
             logger.warning(f"Fetch failed: {e}")
+            # If we fail, we reset the session for the NEXT attempt to ensure no stuck sockets
+            reset_session()
             return None
 
     if is_railway:

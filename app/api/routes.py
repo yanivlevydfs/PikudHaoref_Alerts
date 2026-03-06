@@ -1,4 +1,5 @@
 from fastapi import APIRouter, HTTPException, Query, Response
+from typing import Optional
 from datetime import datetime
 from app.services.alert_state import global_alert_state
 from app.db.database import get_recent_alerts, get_alert_statistics
@@ -164,6 +165,27 @@ async def get_statistics(timeframe: str = Query("24h", description="Options: 24h
     except Exception as e:
         logger.error(f"Failed to fetch statistics: {e}")
         raise HTTPException(status_code=500, detail="Internal server error while fetching statistics.")
+
+from app.api.models import QuietTimesResponse
+from app.db.database import get_quiet_time_stats
+
+@router.get(
+    "/api/alerts/quiet_times",
+    summary="Get Best Times (Lowest Alert Frequency)",
+    description="Analyzes historical data to find hours of the day with the fewest alerts, globally or for a specific city.",
+    tags=["Statistics"],
+    response_model=QuietTimesResponse
+)
+async def get_quiet_times(city: Optional[str] = Query(None, description="Optional city name to filter by")):
+    """
+    Returns alert counts grouped by hour (00-23).
+    """
+    try:
+        data = get_quiet_time_stats(city=city)
+        return {"message": "Quiet time statistics retrieved successfully", "data": data}
+    except Exception as e:
+        logger.error(f"Failed to fetch quiet times: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error while fetching quiet times.")
 
 @router.get(
     "/rss",

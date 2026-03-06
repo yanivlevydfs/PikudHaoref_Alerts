@@ -7,7 +7,8 @@ logger = logging.getLogger("pikudhaoref_app.config")
 # Path to the configuration file
 CONFIG_FILE_PATH = Path("config.json")
 
-# Default configuration
+import os
+
 DEFAULT_CONFIG = {
     "scheduler": {
         "routine_interval_seconds": 120,
@@ -23,21 +24,44 @@ def load_config():
     """
     Loads the configuration from config.json.
     If the file does not exist, it creates one with default values.
+    Prioritizes Environment Variables for Proxy settings.
     """
-    if not CONFIG_FILE_PATH.exists():
+    config = DEFAULT_CONFIG.copy()
+
+    if CONFIG_FILE_PATH.exists():
+        try:
+            with open(CONFIG_FILE_PATH, "r") as f:
+                loaded_config = json.load(f)
+                # Deep merge or simple update
+                if "scheduler" in loaded_config:
+                    config["scheduler"].update(loaded_config["scheduler"])
+                if "proxy" in loaded_config:
+                    config["proxy"].update(loaded_config["proxy"])
+                logger.info("Configuration loaded from file.")
+        except Exception as e:
+            logger.error(f"Failed to load configuration file: {e}. Using defaults.")
+    else:
         logger.info(f"Configuration file not found. Creating default configuration at {CONFIG_FILE_PATH}")
         with open(CONFIG_FILE_PATH, "w") as f:
             json.dump(DEFAULT_CONFIG, f, indent=4)
-        return DEFAULT_CONFIG
 
-    try:
-        with open(CONFIG_FILE_PATH, "r") as f:
-            config = json.load(f)
-            logger.info("Configuration loaded successfully.")
-            return config
-    except Exception as e:
-        logger.error(f"Failed to load configuration file: {e}. Using default configuration.")
-        return DEFAULT_CONFIG
+    # Environment Variable Overrides (PROXIES ONLY)
+    env_url = os.getenv("OREF_PROXY_URL")
+    env_type = os.getenv("OREF_PROXY_TYPE")
 
-# Load configuration on module import
-APP_CONFIG = load_config()
+    if env_url:
+        logger.info(f"Using Environment Variable OVERRIDE for Proxy URL: {env_url}")
+        config["proxy"]["url"] = env_url
+    if env_type:
+        config["proxy"]["type"] = env_type
+
+    return config
+
+def get_config():
+    """
+    Always returns the most up-to-date configuration.
+    """
+    return load_config()
+
+# Global alias for backward compatibility, but get_config() is preferred for dynamic updates
+APP_CONFIG = get_config()

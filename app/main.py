@@ -5,7 +5,7 @@ from app.api.routes import router as api_router
 from app.core.logging_config import setup_logging
 from contextlib import asynccontextmanager
 from apscheduler.schedulers.background import BackgroundScheduler
-from app.core.config import APP_CONFIG
+from app.core.config import get_config
 from app.services.oref_client import fetch_active_alerts
 from app.services.alert_state import global_alert_state
 from app.db.database import init_db, insert_alert_if_new, get_missing_cities
@@ -31,6 +31,9 @@ def scheduled_job():
     is_error = isinstance(alerts, dict) and "error" in alerts
     has_active_alerts = (isinstance(alerts, list) and len(alerts) > 0) or (isinstance(alerts, dict) and "data" in alerts)
 
+    # Reload config to get latest interval values
+    current_config = get_config()
+
     if is_error:
         logger.error(f"Oref API check failed: {alerts['error']}")
         # Hyper-Fast Recovery: Poll every 10 seconds during outages
@@ -41,13 +44,15 @@ def scheduled_job():
         alert_to_insert = alerts[0] if isinstance(alerts, list) else alerts
         insert_alert_if_new(alert_to_insert)
         
-        logger.info(f"ADAPTIVE POLLING: Emergency active. Scaling polling interval down to {APP_CONFIG['scheduler']['emergency_interval_seconds']} seconds.")
-        scheduler.reschedule_job('fetch_alerts_job', trigger='interval', seconds=APP_CONFIG['scheduler']['emergency_interval_seconds'])
+        interval = current_config['scheduler']['emergency_interval_seconds']
+        logger.info(f"ADAPTIVE POLLING: Emergency active. Scaling polling interval down to {interval} seconds.")
+        scheduler.reschedule_job('fetch_alerts_job', trigger='interval', seconds=interval)
     else:
         # Healthy & Routine
         logger.info("Oref returned no active alerts (Status: Healthy).")
-        logger.info(f"ADAPTIVE POLLING: Shigra (Routine). Relaxing polling interval to {APP_CONFIG['scheduler']['routine_interval_seconds']} seconds.")
-        scheduler.reschedule_job('fetch_alerts_job', trigger='interval', seconds=APP_CONFIG['scheduler']['routine_interval_seconds'])
+        interval = current_config['scheduler']['routine_interval_seconds']
+        logger.info(f"ADAPTIVE POLLING: Shigra (Routine). Relaxing polling interval to {interval} seconds.")
+        scheduler.reschedule_job('fetch_alerts_job', trigger='interval', seconds=interval)
 
 def geocode_missing_cities_job(limit_to_five: bool = True):
     """
@@ -100,7 +105,7 @@ async def lifespan(app: FastAPI):
     init_db()
     
     # Initial startup interval will be the gentle routine one
-    initial_interval = APP_CONFIG['scheduler']['routine_interval_seconds']
+    initial_interval = get_config()['scheduler']['routine_interval_seconds']
     
     scheduler.add_job(
         scheduled_job,

@@ -121,6 +121,59 @@
     .stats-table-container::-webkit-scrollbar-thumb:hover {
         background: rgba(255, 255, 255, 0.3);
     }
+
+    /* Select2 Dark Mode Override */
+    .select2-container--default .select2-selection--single {
+        background-color: rgba(255, 255, 255, 0.05) !important;
+        border: 1px solid var(--border-glass) !important;
+        border-radius: 8px !important;
+        height: 45px !important;
+        display: flex;
+        align-items: center;
+        transition: all 0.3s ease;
+    }
+
+    .select2-container--default .select2-selection--single .select2-selection__rendered {
+        color: white !important;
+        padding-right: 12px !important;
+        line-height: normal !important;
+    }
+
+    .select2-container--default .select2-selection--single .select2-selection__arrow {
+        height: 43px !important;
+    }
+
+    .select2-dropdown {
+        background-color: #1a1a1a !important;
+        border: 1px solid var(--border-glass) !important;
+        border-radius: 8px !important;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5) !important;
+        backdrop-filter: blur(10px);
+    }
+
+    .select2-container--default .select2-search--dropdown .select2-search__field {
+        background-color: rgba(255, 255, 255, 0.05) !important;
+        border: 1px solid var(--border-glass) !important;
+        color: white !important;
+        border-radius: 4px !important;
+    }
+
+    .select2-results__option {
+        padding: 10px 15px !important;
+        background-color: transparent !important;
+        color: var(--text-secondary) !important;
+        transition: all 0.2s ease;
+    }
+
+    .select2-results__option--highlighted[aria-selected] {
+        background-color: var(--accent-color) !important;
+        color: white !important;
+    }
+
+    .select2-results__option[aria-selected=true] {
+        background-color: rgba(255, 255, 255, 0.1) !important;
+        color: white !important;
+    }
 </style>
 
 <div class="page-container glass-panel">
@@ -131,6 +184,53 @@
     </header>
 
     <div class="page-content" style="max-width: 900px; margin: 0 auto;">
+
+        <!-- Quiet Times Analysis -->
+        <div class="quiet-times-section" style="margin-top: 0; margin-bottom: 4rem;">
+            <header style="text-align: center; margin-bottom: 2rem;">
+                <h2
+                    style="color: var(--safe-color); font-size: 2rem; display: flex; align-items: center; justify-content: center; gap: 10px;">
+                    <span style="font-size: 2.5rem;">🌙</span> זמני שקט - מתי הכי בטוח?
+                </h2>
+                <p style="color: var(--text-secondary);">ניתוח התפלגות התרעות לפי שעות היממה</p>
+            </header>
+
+            <div
+                style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.5rem; margin-bottom: 2rem;">
+                <!-- Global Quiet Time Card -->
+                <div class="glass-panel"
+                    style="padding: 1.5rem; text-align: center; border: 1px solid rgba(0, 255, 127, 0.2); background: rgba(0, 255, 127, 0.03);">
+                    <h3 style="color: var(--text-secondary); font-size: 1rem; margin-bottom: 0.5rem;">השעה השקטה ביותר
+                        (כללי)</h3>
+                    <div id="global-quietest-hour"
+                        style="font-size: 2.2rem; font-weight: 800; color: var(--safe-color); text-shadow: 0 0 15px rgba(0, 255, 127, 0.3);">
+                        --:--</div>
+                    <p id="global-quietest-count"
+                        style="font-size: 0.9rem; color: var(--text-secondary); margin-top: 0.5rem;">מבוסס על נתוני כל
+                        הארץ</p>
+                </div>
+
+                <!-- City Quiet Time Card -->
+                <div class="glass-panel"
+                    style="padding: 1.5rem; text-align: center; border: 1px solid rgba(59, 130, 246, 0.2); background: rgba(59, 130, 246, 0.03);">
+                    <div style="margin-bottom: 1rem;">
+                        <select id="city-quiet-select"
+                            style="width: 100%; padding: 8px; border-radius: 6px; background: rgba(255,255,255,0.05); color: white; border: 1px solid var(--border-glass);">
+                            <option value="">בחר עיר לבדיקה...</option>
+                        </select>
+                    </div>
+                    <h3 style="color: var(--text-secondary); font-size: 1rem; margin-bottom: 0.5rem;">השעה השקטה ביותר
+                        ביישוב</h3>
+                    <div id="city-quietest-hour"
+                        style="font-size: 2.2rem; font-weight: 800; color: #60a5fa; text-shadow: 0 0 15px rgba(59, 130, 246, 0.3);">
+                        --:--</div>
+                </div>
+            </div>
+
+            <div class="chart-container glass-panel" style="padding: 1.5rem; height: 350px;">
+                <canvas id="quietTimeChart"></canvas>
+            </div>
+        </div>
 
         <!-- Filter UI -->
         <div class="filter-tabs">
@@ -158,7 +258,7 @@
             </table>
         </div>
 
-        <div style="margin-top: 3rem; text-align: center;">
+        <div style="margin-top: 3rem; text-align: center; margin-bottom: 3rem;">
             <a href="/" class="btn"
                 style="display: inline-block; padding: 0.8rem 2rem; background: rgba(255,255,255,0.1); color: white; border: 1px solid var(--border-glass); text-decoration: none; border-radius: 8px; font-weight: bold; transition: background 0.3s;">חזרה
                 למערכת המרכזית</a>
@@ -166,26 +266,140 @@
     </div>
 </div>
 
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
 <script>
     document.addEventListener('DOMContentLoaded', () => {
         const filterBtns = document.querySelectorAll('.filter-btn');
         const statsBody = document.getElementById('stats-body');
+        const citySelect = document.getElementById('city-quiet-select');
+        let chart = null;
 
-        // Initial fetch
+        // Initial fetches
         fetchStats('24h');
+        fetchQuietTimes();
+        populateCitySelect();
+
+        // City selection listener
+        citySelect.addEventListener('change', () => {
+            fetchQuietTimes(citySelect.value);
+        });
 
         // Add click listeners to buttons
         filterBtns.forEach(btn => {
             btn.addEventListener('click', (e) => {
-                // Update active styling
                 filterBtns.forEach(b => b.classList.remove('active'));
                 e.target.classList.add('active');
-
-                // Fetch new data
                 const timeframe = e.target.getAttribute('data-timeframe');
                 fetchStats(timeframe);
             });
         });
+
+        async function populateCitySelect() {
+            try {
+                const res = await fetch('/api/geolocations_list');
+                const data = await res.json();
+
+                // Clear existing options except placeholder
+                citySelect.innerHTML = '<option value="">בחר עיר לבדיקה...</option>';
+
+                data.data.forEach(city => {
+                    const option = document.createElement('option');
+                    option.value = city.city_name;
+                    option.textContent = city.city_name;
+                    citySelect.appendChild(option);
+                });
+
+                // Initialize Select2 after population
+                $(citySelect).select2({
+                    dir: "rtl",
+                    placeholder: "בחר עיר לבדיקה...",
+                    allowClear: true,
+                    width: '100%'
+                });
+
+                // Listen to Select2 change event
+                $(citySelect).on('select2:select', function (e) {
+                    fetchQuietTimes(e.target.value);
+                });
+
+                $(citySelect).on('select2:unselect', function (e) {
+                    fetchQuietTimes(null);
+                });
+
+            } catch (err) { console.error('Error populating cities:', err); }
+        }
+
+        async function fetchQuietTimes(city = null) {
+            const url = city ? `/api/alerts/quiet_times?city=${encodeURIComponent(city)}` : '/api/alerts/quiet_times';
+            try {
+                const res = await fetch(url);
+                const data = await res.json();
+                renderQuietTimes(data.data, city);
+            } catch (err) { console.error('Error fetching quiet times:', err); }
+        }
+
+        function renderQuietTimes(data, isCityFilter) {
+            if (!data || data.length === 0) return;
+
+            // Find quietest hour (one with minimum count)
+            const sorted = [...data].sort((a, b) => a.count - b.count);
+            const quietest = sorted[0];
+
+            if (!isCityFilter) {
+                document.getElementById('global-quietest-hour').innerText = `${quietest.hour}:00`;
+                document.getElementById('global-quietest-count').innerText = `רק ${quietest.count.toLocaleString()} התרעות לאורך ההיסטוריה`;
+            } else {
+                document.getElementById('city-quietest-hour').innerText = `${quietest.hour}:00`;
+            }
+
+            // Update Chart
+            const ctx = document.getElementById('quietTimeChart').getContext('2d');
+            const labels = data.map(d => `${d.hour}:00`);
+            const counts = data.map(d => d.count);
+            const backgroundColors = data.map(d => d.hour === quietest.hour ? 'rgba(0, 255, 127, 0.6)' : 'rgba(255, 59, 59, 0.4)');
+
+            if (chart) {
+                chart.data.labels = labels;
+                chart.data.datasets[0].data = counts;
+                chart.data.datasets[0].backgroundColor = backgroundColors;
+                chart.update();
+            } else {
+                chart = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: 'מספר התרעות',
+                            data: counts,
+                            backgroundColor: backgroundColors,
+                            borderColor: 'rgba(255, 255, 255, 0.1)',
+                            borderWidth: 1,
+                            borderRadius: 4
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: false }
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                                ticks: { color: 'rgba(255, 255, 255, 0.5)' }
+                            },
+                            x: {
+                                grid: { display: false },
+                                ticks: { color: 'rgba(255, 255, 255, 0.5)' }
+                            }
+                        }
+                    }
+                });
+            }
+        }
 
         async function fetchStats(timeframe) {
             // Show loading state

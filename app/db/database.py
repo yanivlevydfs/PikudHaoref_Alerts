@@ -204,6 +204,51 @@ def get_alert_statistics(timeframe="24h"):
         logger.error(f"Error fetching alert statistics: {e}")
         return []
 
+def get_quiet_time_stats(city=None):
+    """
+    Analyzes all historical data to find the distribution of alerts by hour of the day.
+    Returns counts for all 24 hours (00-23).
+    """
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            
+            if city:
+                # Per-city analysis
+                query = '''
+                    SELECT strftime('%H', timestamp) as hour, COUNT(*) as count
+                    FROM alerts, json_each(alerts.locations_json) as j
+                    WHERE j.value = ?
+                    GROUP BY hour
+                    ORDER BY hour ASC
+                '''
+                cursor.execute(query, (city,))
+            else:
+                # Global analysis
+                query = '''
+                    SELECT strftime('%H', timestamp) as hour, COUNT(*) as count
+                    FROM alerts
+                    GROUP BY hour
+                    ORDER BY hour ASC
+                '''
+                cursor.execute(query)
+            
+            rows = cursor.fetchall()
+            
+            # Initialize all 24 hours with 0
+            hour_map = {f"{h:02d}": 0 for h in range(24)}
+            for row in rows:
+                if row["hour"] in hour_map:
+                    hour_map[row["hour"]] = row["count"]
+            
+            # Convert back to sorted list
+            result = [{"hour": h, "count": count} for h, count in sorted(hour_map.items())]
+            return result
+            
+    except Exception as e:
+        logger.error(f"Error fetching quiet time stats: {e}")
+        return []
+
 def get_all_unique_cities():
     """
     Fetches a flat list of all unique cities/places ever intercepted and stored in the database.
