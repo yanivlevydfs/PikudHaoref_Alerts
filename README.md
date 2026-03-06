@@ -6,8 +6,8 @@ This repository contains a FastAPI wrapper around the official Israel Home Front
 
 - **Real-time Dashboard**: Interactive Map (Leaflet) with live alert updates and visual status indicators.
 - **Israel-First Geocoding**: Optimized location search using localized OSM data with aggressive caching.
-- **Robust Proxy Management**: Integrated with a dynamic, external Israeli proxy list (`proxies.json`) to bypass 403 blocks.
-- **24-Hour Proxy Stickiness**: Implements long-term session persistence to "keep working" with a validated proxy, reducing re-validation overhead.
+- **Environment-Aware Proxy**: Automatically uses a high-performance proxy on Railway to bypass 403 blocks, while using efficient direct connections on localhost.
+- **24-Hour Session Persistence**: Maintains persistent session state to minimize connection overhead and bypass rate limits.
 - **Intelligent Alert Persistence**: State accumulation ensures city markers stay on the map throughout a "bulk" attack until the API explicitly returns an empty response.
 - **System Reliability Notifications**: Real-time red warning banners and status indicators if the Oref API connection is interrupted.
 - **Adaptive Polling**: Automatically scales polling frequency between Routine (gentle) and Emergency (rapid) modes based on threat level.
@@ -74,16 +74,21 @@ The application uses a `config.json` file in the root directory for core setting
 
 ## Proxy Management
 
-To bypass 403 blocks from the Oref servers, the system uses a rotator located in `app/resources/proxies.json`. 
+To bypass 403 blocks from the Oref servers when deployed in cloud environments (like Railway), the system uses a high-performance dedicated proxy configured in `config.json`.
 
-**Structure:**
+**Example `config.json`:**
 ```json
-[
-  { "url": "host:port", "type": "http" },
-  { "url": "user:pass@host:port", "type": "socks5" }
-]
+{
+    "proxy": {
+        "url": "185.241.5.57:3128",
+        "type": "http"
+    }
+}
 ```
-The system will automatically find a working Israeli proxy and "stick" to it for 24 hours to ensure consistent performance.
+
+- **Railway**: Automatically routes all Oref traffic through the proxy defined in the config.
+- **Development/Local**: Uses direct connection for maximum speed.
+- **Persistence**: Uses a shared `requests.Session` with automatic cookie management to ensure consistent bypass success.
 
 ## API Reference
 

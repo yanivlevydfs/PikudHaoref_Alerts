@@ -12,6 +12,10 @@ DEFAULT_CONFIG = {
     "scheduler": {
         "routine_interval_seconds": 120,
         "emergency_interval_seconds": 10
+    },
+    "proxy": {
+        "url": "185.241.5.57:3128",
+        "type": "http"
     }
 }
 

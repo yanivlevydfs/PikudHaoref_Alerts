@@ -9,8 +9,7 @@ logger = logging.getLogger(__name__)
 # Global session to persist cookies and connection
 session = requests.Session()
 
-# The only working proxy for now per user request
-WORKING_PROXY = {"url": "185.241.5.57:3128", "type": "http"}
+from app.core.config import APP_CONFIG
 
 # Common headers for Oref
 OREF_HEADERS = {
@@ -39,6 +38,9 @@ def fetch_active_alerts():
     url = "https://www.oref.org.il/WarningMessages/alert/alerts.json"
     home_url = "https://www.oref.org.il/"
     headers = OREF_HEADERS
+    
+    # Get proxy config from global APP_CONFIG
+    proxy_config = APP_CONFIG.get("proxy")
     
     # Check if running on Railway
     is_railway = os.getenv("RAILWAY_ENVIRONMENT") is not None
@@ -75,9 +77,9 @@ def fetch_active_alerts():
 
     if is_railway:
         logger.info("RAILWAY DETECTED: Routing via Proxy Only...")
-        response = attempt_request(WORKING_PROXY)
+        response = attempt_request(proxy_config)
         if response and response.status_code == 200:
-            logger.info(f"SUCCESS: Fetched alerts via proxy: {WORKING_PROXY['url']}")
+            logger.info(f"SUCCESS: Fetched alerts via proxy: {proxy_config['url']}")
         return process_response(response)
     else:
         logger.info("LOCALHOST/DEV DETECTED: Routing via Direct Connection Only...")
