@@ -1,4 +1,5 @@
 import requests
+import os
 import json
 import logging
 import time
@@ -32,73 +33,58 @@ OREF_HEADERS = {
 def fetch_active_alerts():
     """
     Fetches the active alerts from the Oref API.
-    Uses extensive headers, persistent session, and a single working proxy to bypass 403 blocks.
+    Environment-aware: Uses a proxy ONLY on Railway to bypass IP blocks.
+    Uses Direct connection on localhost/others.
     """
     url = "https://www.oref.org.il/WarningMessages/alert/alerts.json"
     home_url = "https://www.oref.org.il/"
-    
     headers = OREF_HEADERS
-
+    
+    # Check if running on Railway
+    is_railway = os.getenv("RAILWAY_ENVIRONMENT") is not None
+    
     def attempt_request(proxy_config=None):
         if proxy_config:
             p_url = proxy_config["url"]
             p_type = proxy_config["type"]
-            logger.info(f"++++++++++++++++++++++++++++++++++++++++")
-            logger.info(f"🎯 [ACTIVE PROXY IN USE] -> {p_url} (Type: {p_type})")
-            logger.info(f"++++++++++++++++++++++++++++++++++++++++")
+            logger.info(f"🎯 [PROXY FETCH] using {p_url} ({p_type})")
+            
             if p_type == "socks5":
                 proxy_str = f"socks5h://{p_url}"
-            elif p_type == "socks4":
-                proxy_str = f"socks4://{p_url}"
-            elif p_type == "https":
-                proxy_str = f"https://{p_url}"
             else:
                 proxy_str = f"http://{p_url}"
+                
             proxies = {"http": proxy_str, "https": proxy_str}
-            timeout = 25 # Increased timeout for unreliable free proxies
+            timeout = 25
         else:
+            logger.info("🎯 [DIRECT FETCH] no proxy used")
             proxies = None
             timeout = 10 
             
         try:
-            # Always clear cookies before a new attempt to avoid session state issues
             session.cookies.clear()
-            
-            # Visit home page first to get cookies/session state
-            logger.info(f"Visiting Oref homepage via {proxy_config['url'] if proxy_config else 'Direct'}...")
+            # Visit home page first to get cookies
             session.get(home_url, headers={'User-Agent': headers['User-Agent']}, timeout=timeout, proxies=proxies)
-            time.sleep(1.5)
+            time.sleep(1.2) # Small break
             
             response = session.get(url, headers=headers, timeout=timeout, proxies=proxies)
             return response
         except Exception as e:
-            logger.warning(f"Request failed with {proxy_config['type'] if proxy_config else 'Direct'}: {e}")
+            logger.warning(f"Fetch failed: {e}")
             return None
 
-    # Step 1: Try Direct first
-    logger.info("Attempting direct connection to Oref...")
-    response = attempt_request()
-    
-    if response and response.status_code == 200:
-        logger.info("SUCCESS: Direct connection to Oref established.")
+    if is_railway:
+        logger.info("RAILWAY DETECTED: Routing via Proxy Only...")
+        response = attempt_request(WORKING_PROXY)
+        if response and response.status_code == 200:
+            logger.info(f"SUCCESS: Fetched alerts via proxy: {WORKING_PROXY['url']}")
         return process_response(response)
-    
-    if response:
-        logger.warning(f"Direct connection returned status {response.status_code}. Might be blocked.")
     else:
-        logger.warning("Direct connection failed completely (Timeout/Network Error).")
-
-    # Step 2: Use the single working proxy
-    logger.info("Direct request blocked or failed. Attempting to use the working proxy...")
-    
-    response = attempt_request(WORKING_PROXY)
-    if response and response.status_code == 200:
-        logger.info(f"SUCCESS: Fetched alerts via working proxy: {WORKING_PROXY['url']}")
+        logger.info("LOCALHOST/DEV DETECTED: Routing via Direct Connection Only...")
+        response = attempt_request()
+        if response and response.status_code == 200:
+            logger.info("SUCCESS: Direct connection successful.")
         return process_response(response)
-    elif response:
-        logger.warning(f"Proxy {WORKING_PROXY['url']} returned status {response.status_code}")
-    
-    return process_response(response)
 
 def process_response(response):
     if not response:
