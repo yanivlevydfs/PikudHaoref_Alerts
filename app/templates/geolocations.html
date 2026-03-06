@@ -1,0 +1,424 @@
+{% extends "base.html" %}
+
+{% block title %}ניהול מיקומים - Rockets & Missles Alerts{% endblock %}
+
+{% block extra_head %}
+<style>
+    .page-container {
+        max-width: 1000px;
+        margin: 0 auto;
+        padding: 2rem 1rem;
+    }
+
+    .dashboard-header {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        margin-bottom: 2rem;
+        text-align: center;
+    }
+
+    .header-icon {
+        font-size: 3rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .dashboard-header h1 {
+        color: var(--text-primary);
+        font-size: 2.2rem;
+        margin-bottom: 0.5rem;
+        font-weight: 800;
+        text-shadow: 0 0 15px rgba(255, 255, 255, 0.1);
+    }
+
+    .dashboard-header p {
+        color: var(--text-secondary);
+        font-size: 1.1rem;
+        max-width: 600px;
+    }
+
+    .controls-bar {
+        background: rgba(30, 30, 30, 0.4);
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        border-radius: 15px;
+        padding: 1.5rem;
+        display: flex;
+        gap: 1rem;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 2rem;
+        backdrop-filter: blur(10px);
+    }
+
+    .search-wrapper {
+        flex: 1;
+        position: relative;
+    }
+
+    .search-input {
+        width: 100%;
+        padding: 0.8rem 1.2rem;
+        border-radius: 8px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        background: rgba(20, 20, 20, 0.5);
+        color: white;
+        font-family: inherit;
+        font-size: 1rem;
+    }
+
+    .search-input:focus {
+        outline: none;
+        border-color: #ff3b3b;
+        box-shadow: 0 0 10px rgba(255, 59, 59, 0.2);
+    }
+
+    .filter-wrapper {
+        display: flex;
+        gap: 1rem;
+    }
+
+    .filter-btn {
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        color: var(--text-secondary);
+        padding: 0.8rem 1.5rem;
+        border-radius: 8px;
+        cursor: pointer;
+        font-weight: 600;
+        transition: all 0.3s ease;
+    }
+
+    .filter-btn.active {
+        background: #ff3b3b;
+        color: white;
+        border-color: #ff3b3b;
+        box-shadow: 0 4px 15px rgba(255, 59, 59, 0.3);
+    }
+
+    .table-container {
+        background: rgba(20, 20, 20, 0.6);
+        border-radius: 15px;
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        overflow: hidden;
+    }
+
+    .geo-table {
+        width: 100%;
+        border-collapse: collapse;
+        text-align: right;
+    }
+
+    .geo-table th,
+    .geo-table td {
+        padding: 1rem 1.5rem;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .geo-table th {
+        background: rgba(0, 0, 0, 0.4);
+        color: var(--text-secondary);
+        font-weight: 600;
+        font-size: 0.95rem;
+        white-space: nowrap;
+    }
+
+    .geo-table tbody tr {
+        transition: background 0.2s;
+    }
+
+    .geo-table tbody tr:hover {
+        background: rgba(255, 255, 255, 0.02);
+    }
+
+    .status-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.4rem 0.8rem;
+        border-radius: 20px;
+        font-size: 0.85rem;
+        font-weight: 600;
+    }
+
+    .status-cached {
+        background: rgba(46, 213, 115, 0.15);
+        color: #2ed573;
+        border: 1px solid rgba(46, 213, 115, 0.3);
+    }
+
+    .status-missing {
+        background: rgba(255, 71, 87, 0.15);
+        color: #ff4757;
+        border: 1px solid rgba(255, 71, 87, 0.3);
+    }
+
+    .geo-data-cell {
+        font-family: monospace;
+        color: var(--text-secondary);
+        font-size: 0.85rem;
+        max-width: 300px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .stats-summary {
+        margin-bottom: 1rem;
+        display: flex;
+        gap: 1.5rem;
+        justify-content: center;
+    }
+
+    .stat-chip {
+        background: rgba(0, 0, 0, 0.3);
+        padding: 0.5rem 1rem;
+        border-radius: 8px;
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        color: #ccc;
+        font-weight: 600;
+        font-size: 0.9rem;
+    }
+
+    .loading-state {
+        text-align: center;
+        padding: 4rem 0;
+        color: var(--text-secondary);
+    }
+
+    .loader {
+        border: 3px solid rgba(255, 255, 255, 0.1);
+        border-top: 3px solid #ff3b3b;
+        border-radius: 50%;
+        width: 40px;
+        height: 40px;
+        animation: spin 1s linear infinite;
+        margin: 0 auto 1rem auto;
+    }
+
+    @keyframes spin {
+        0% {
+            transform: rotate(0deg);
+        }
+
+        100% {
+            transform: rotate(360deg);
+        }
+    }
+
+    @media (max-width: 768px) {
+        .controls-bar {
+            flex-direction: column;
+            align-items: stretch;
+        }
+
+        .filter-wrapper {
+            justify-content: stretch;
+        }
+
+        .filter-btn {
+            flex: 1;
+            text-align: center;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-container glass-morphism">
+    <div class="dashboard-header">
+        <div class="header-icon">🌍</div>
+        <h1>ניהול מיקומים וגיאוגרפיה</h1>
+        <p>צפה בכל היישובים שתועדו במערכת ואמת את תקינות מיקומי ה-GeoJSON שנאספו עבור המפה.</p>
+    </div>
+
+    <div class="stats-summary" id="statsContainer" style="display: none;">
+        <div class="stat-chip">סה"כ יישובים: <span id="totalCount">0</span></div>
+        <div class="stat-chip" style="color: #2ed573;">תקינים: <span id="cachedCount">0</span></div>
+        <div class="stat-chip" style="color: #ff4757;">חסרים: <span id="missingCount">0</span></div>
+    </div>
+
+    <div class="controls-bar">
+        <div class="search-wrapper">
+            <input type="text" id="searchInput" class="search-input" placeholder="חפש יישוב או מילת מפתח..."
+                autocomplete="off">
+        </div>
+        <div class="filter-wrapper">
+            <button class="filter-btn active" data-filter="all">הכל</button>
+            <button class="filter-btn" data-filter="missing">חסרים בלבד</button>
+            <button class="filter-btn" data-filter="cached">תקינים בלבד</button>
+            <button id="forceSyncBtn" class="filter-btn"
+                style="background: rgba(46, 213, 115, 0.2); color: #2ed573; border-color: rgba(46, 213, 115, 0.4); margin-right: 1rem;">
+                🚀 סרוק חסרים עכשיו
+            </button>
+        </div>
+    </div>
+
+    <div class="table-container">
+        <div id="loadingState" class="loading-state">
+            <div class="loader"></div>
+            <div>טוען נתונים מהמסד...</div>
+        </div>
+
+        <table class="geo-table" id="geoTable" style="display: none;">
+            <thead>
+                <tr>
+                    <th>שם יישוב</th>
+                    <th>סטטוס במטמון</th>
+                    <th>נתוני GeoJSON</th>
+                </tr>
+            </thead>
+            <tbody id="geoTableBody">
+                <!-- Rows injected via JS -->
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener("DOMContentLoaded", () => {
+        let allCities = [];
+        let currentFilter = 'all';
+
+        const tableBody = document.getElementById('geoTableBody');
+        const searchInput = document.getElementById('searchInput');
+        const filterBtns = document.querySelectorAll('.filter-btn');
+        const loadingState = document.getElementById('loadingState');
+        const geoTable = document.getElementById('geoTable');
+        const statsContainer = document.getElementById('statsContainer');
+
+        // Fetch Data
+        async function fetchGeolocations() {
+            try {
+                const response = await fetch('/api/geolocations_list');
+                const data = await response.json();
+
+                if (data && data.data) {
+                    allCities = data.data;
+                    updateStats();
+                    renderTable();
+
+                    loadingState.style.display = 'none';
+                    geoTable.style.display = 'table';
+                    statsContainer.style.display = 'flex';
+                }
+            } catch (err) {
+                console.error("Failed to fetch geolocations:", err);
+                loadingState.innerHTML = `<div style="color: #ff4757;">שגיאה בטעינת נתונים...</div>`;
+            }
+        }
+
+        function updateStats() {
+            const total = allCities.length;
+            const cached = allCities.filter(c => c.is_cached).length;
+            const missing = total - cached;
+
+            document.getElementById('totalCount').innerText = total;
+            document.getElementById('cachedCount').innerText = cached;
+            document.getElementById('missingCount').innerText = missing;
+        }
+
+        function renderTable() {
+            const searchTerm = searchInput.value.toLowerCase().trim();
+
+            tableBody.innerHTML = '';
+
+            const filtered = allCities.filter(city => {
+                // Apply Search
+                const matchesSearch = city.city_name.toLowerCase().includes(searchTerm);
+
+                // Apply Status Filter
+                let matchesStatus = true;
+                if (currentFilter === 'missing') matchesStatus = !city.is_cached;
+                if (currentFilter === 'cached') matchesStatus = city.is_cached;
+
+                return matchesSearch && matchesStatus;
+            });
+
+            if (filtered.length === 0) {
+                tableBody.innerHTML = `<tr><td colspan="3" style="text-align: center; padding: 2rem;">לא נמצאו תוצאות</td></tr>`;
+                return;
+            }
+
+            const fragment = document.createDocumentFragment();
+
+            filtered.forEach(city => {
+                const tr = document.createElement('tr');
+
+                let statusBadge = city.is_cached
+                    ? `<span class="status-badge status-cached">✅ קיים במטמון</span>`
+                    : `<span class="status-badge status-missing">⏳ ממתין לסריקה</span>`;
+
+                let dataPreview = "N/A";
+                if (city.is_cached && city.geo_data) {
+                    dataPreview = JSON.stringify(city.geo_data);
+                }
+
+                tr.innerHTML = `
+                    <td style="font-weight: 600;">${city.city_name}</td>
+                    <td>${statusBadge}</td>
+                    <td class="geo-data-cell" title='${dataPreview}'>${dataPreview}</td>
+                `;
+
+                fragment.appendChild(tr);
+            });
+
+            tableBody.appendChild(fragment);
+        }
+
+        // Event Listeners
+        searchInput.addEventListener('input', () => {
+            renderTable();
+        });
+
+        filterBtns.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                filterBtns.forEach(b => b.classList.remove('active'));
+                e.target.classList.add('active');
+                currentFilter = e.target.getAttribute('data-filter');
+                renderTable();
+            });
+        });
+
+        // Button logic for Manual Sync
+        const forceSyncBtn = document.getElementById('forceSyncBtn');
+        if (forceSyncBtn) {
+            forceSyncBtn.addEventListener('click', async () => {
+                forceSyncBtn.disabled = true;
+                const originalText = forceSyncBtn.innerText;
+                forceSyncBtn.innerText = '⌛ סורק כעת...';
+
+                try {
+                    const res = await fetch('/api/geolocations/sync', { method: 'POST' });
+                    const resData = await res.json();
+                    console.log(resData.message);
+
+                    // Refresh table shortly after to see the new batch
+                    setTimeout(() => {
+                        fetchGeolocations();
+                        forceSyncBtn.innerText = originalText;
+                        forceSyncBtn.disabled = false;
+                    }, 5000);
+
+                } catch (e) {
+                    console.error("Sync failed", e);
+                    forceSyncBtn.innerText = '❌ שגיאה';
+                    setTimeout(() => {
+                        forceSyncBtn.innerText = originalText;
+                        forceSyncBtn.disabled = false;
+                    }, 3000);
+                }
+            });
+        }
+
+        // Init
+        fetchGeolocations();
+
+        // Refresh every 3 minutes silently to update missing counts as the background worker runs
+        setInterval(() => {
+            fetchGeolocations();
+        }, 180000);
+    });
+</script>
+{% endblock %}

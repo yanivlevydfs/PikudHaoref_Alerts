@@ -65,9 +65,20 @@ def init_db():
                 )
             ''')
             
+            # Create the geolocations table for permanent coordinate storage
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS geolocations (
+                    city_name TEXT PRIMARY KEY,
+                    is_found BOOLEAN NOT NULL DEFAULT 0,
+                    geo_data TEXT,
+                    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+            
             # Create indexes for high performance querying
             cursor.execute('CREATE INDEX IF NOT EXISTS idx_timestamp ON alerts(timestamp)')
             cursor.execute('CREATE INDEX IF NOT EXISTS idx_alert_id ON alerts(alert_id)')
+            cursor.execute('CREATE INDEX IF NOT EXISTS idx_geolocations_city ON geolocations(city_name)')
             
             conn.commit()
             logger.info("Database initialized successfully with indexes.")
@@ -193,45 +204,120 @@ def get_alert_statistics(timeframe="24h"):
         logger.error(f"Error fetching alert statistics: {e}")
         return []
 
-def get_missing_cities(known_cities):
+def get_all_unique_cities():
     """
-    Fetches a flat list of all unique cities/places ever intercepted and stored in the database,
-    excluding those that are already in the known_cities list.
-    This serves as the master list for the background geocoding service.
+    Fetches a flat list of all unique cities/places ever intercepted and stored in the database.
     """
     try:
         with get_db_connection() as conn:
             cursor = conn.cursor()
             
-            if not known_cities:
-                query = '''
-                    SELECT DISTINCT j.value as city
-                    FROM alerts, json_each(alerts.locations_json) as j
-                '''
-                cursor.execute(query)
-            else:
-                # To securely pass a dynamic list of known cities, we use parameter substitution.
-                # SQLite has a limit on parameters, but usually it's fine for ~999. 
-                # If cached_cities exceeds 900, we'll chunk it or rely on Python filtering.
-                # Given Israel's scale, bounding to 900 is safe for a single query.
-                safe_known = list(known_cities)[:900]
-                placeholders = ','.join(['?'] * len(safe_known))
-                query = f'''
-                    SELECT DISTINCT j.value as city
-                    FROM alerts, json_each(alerts.locations_json) as j
-                    WHERE city NOT IN ({placeholders})
-                '''
-                cursor.execute(query, safe_known)
+            # json_each unpacking gives us individual city strings flatly
+            query = '''
+                SELECT DISTINCT j.value as city
+                FROM alerts, json_each(alerts.locations_json) as j
+            '''
+            cursor.execute(query)
+            
+            rows = cursor.fetchall()
+            cities = [row["city"] for row in rows if row["city"]]
+            return cities
+            
+    except Exception as e:
+        logger.error(f"Error fetching all unique cities: {e}")
+        return []
+
+def get_missing_cities(known_cities=None):
+    """
+    Fetches a flat list of all unique cities/places ever intercepted and stored in the database,
+    excluding those that already exist in the `geolocations` table natively.
+    """
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            
+            # Use SQLite natively to filter out places that are already geocoded/processed
+            query = '''
+                SELECT DISTINCT j.value as city
+                FROM alerts, json_each(alerts.locations_json) as j
+                LEFT JOIN geolocations g ON j.value = g.city_name
+                WHERE g.city_name IS NULL
+            '''
+            cursor.execute(query)
             
             rows = cursor.fetchall()
             cities = [row["city"] for row in rows if row["city"]]
             
-            logger.info(f"[DB GEO] Fetched {len(cities)} missing cities requiring geolocation.")
+            logger.info(f"[DB GEO] Fetched {len(cities)} natively missing cities requiring geolocation.")
             return cities
             
     except Exception as e:
-        logger.error(f"Error fetching missing cities: {e}")
+        logger.error(f"Error fetching missing cities natively: {e}")
         return []
+
+def get_geolocation_by_city(city_name: str):
+    """Retrieves a single parsed GeoJSON object from the database for a city, or None if missing."""
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('SELECT is_found, geo_data FROM geolocations WHERE city_name = ?', (city_name,))
+            row = cursor.fetchone()
+            if row:
+                if row['is_found'] and row['geo_data']:
+                    try:
+                        return json.loads(row['geo_data'])
+                    except:
+                        pass
+                return "NOT_FOUND"
+            return None
+    except Exception as e:
+        logger.error(f"Error getting geolocation for {city_name}: {e}")
+        return None
+
+def get_all_geolocations():
+    """Returns a dictionary of all cached geolocations from the SQLite table."""
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('SELECT city_name, is_found, geo_data FROM geolocations')
+            rows = cursor.fetchall()
+            
+            results = {}
+            for row in rows:
+                city = row['city_name']
+                if row['is_found'] and row['geo_data']:
+                    try:
+                        results[city] = json.loads(row['geo_data'])
+                    except:
+                        results[city] = "NOT_FOUND"
+                else:
+                    results[city] = "NOT_FOUND"
+                    
+            return results
+    except Exception as e:
+        logger.error(f"Error fetching all geolocations: {e}")
+        return {}
+
+def save_geolocation(city_name: str, is_found: bool, geo_data: dict = None):
+    """Saves or updates a geolocation entry into the database natively."""
+    try:
+        geo_str = json.dumps(geo_data, ensure_ascii=False) if geo_data else None
+        
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                INSERT INTO geolocations (city_name, is_found, geo_data, updated_at) 
+                VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+                ON CONFLICT(city_name) DO UPDATE SET 
+                    is_found = excluded.is_found,
+                    geo_data = excluded.geo_data,
+                    updated_at = excluded.updated_at
+            ''', (city_name, int(is_found), geo_str))
+            conn.commit()
+            return True
+    except Exception as e:
+        logger.error(f"Error saving geolocation for {city_name}: {e}")
+        return False
 
 def set_system_state(key, value):
     """

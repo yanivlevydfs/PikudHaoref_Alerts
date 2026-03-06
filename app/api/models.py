@@ -34,3 +34,12 @@ class GeocodeRequest(BaseModel):
 class GeocodeResponse(BaseModel):
     message: str
     data: Dict[str, Any] = Field(..., description="Dictionary mapping city name to GeoJSON data.")
+
+class GeolocationCity(BaseModel):
+    city_name: str
+    is_cached: bool
+    geo_data: Optional[Any] = None
+
+class GeolocationsResponse(BaseModel):
+    message: str
+    data: List[GeolocationCity]

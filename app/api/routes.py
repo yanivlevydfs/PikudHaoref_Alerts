@@ -247,3 +247,69 @@ async def resolve_cities(request: GeocodeRequest):
         print(f"[ROUTE TRACE] Exception caught: {e}")
         logger.error(f"Failed to geocode cities: {e}")
         raise HTTPException(status_code=500, detail="Internal server error during geocoding.")
+
+from app.api.models import GeolocationsResponse, GeolocationCity
+from app.db.database import get_all_unique_cities, get_all_geolocations
+
+@router.get(
+    "/api/geolocations_list",
+    summary="Get All Cities and Geolocation Status",
+    description="Returns a list of all historically recorded cities and marks whether they have cached geographical coordinates.",
+    tags=["Geocoding"],
+    response_model=GeolocationsResponse
+)
+async def get_geolocations_list():
+    try:
+        all_cities = get_all_unique_cities()
+        cached_dict = get_all_geolocations()
+        
+        response_data = []
+        for city in all_cities:
+            is_cached = city in cached_dict
+            geo_data = cached_dict.get(city) if is_cached else None
+            
+            response_data.append(GeolocationCity(
+                city_name=city,
+                is_cached=is_cached,
+                geo_data=geo_data if geo_data != "NOT_FOUND" else None
+            ))
+            
+        # Sort so missing ones or alphabetically makes sense, but frontend can handle sorting
+        response_data.sort(key=lambda x: (x.is_cached, x.city_name))
+
+        return {
+            "message": f"Successfully fetched {len(response_data)} cities.",
+            "data": response_data
+        }
+    except Exception as e:
+        logger.error(f"Failed to fetch geolocations list: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error fetching geolocations list.")
+
+from pydantic import BaseModel
+
+class SyncResponse(BaseModel):
+    message: str
+
+@router.post(
+    "/api/geolocations/sync",
+    summary="Trigger Manual Geolocation Sync",
+    description="Forces the background worker to execute a batch of missing geolocations immediately.",
+    tags=["Geocoding"],
+    response_model=SyncResponse
+)
+async def trigger_geolocations_sync():
+    try:
+        from app.main import geocode_missing_cities_job
+        import asyncio
+        from functools import partial
+        
+        loop = asyncio.get_event_loop()
+        
+        # Pass limit_to_five=False to process the entire backlog instead of just 5
+        job_func = partial(geocode_missing_cities_job, limit_to_five=False)
+        await loop.run_in_executor(None, job_func)
+        
+        return {"message": "Manual sync batch triggered successfully. Wait a moment and refresh."}
+    except Exception as e:
+        logger.error(f"Manual sync failed: {e}")
+        raise HTTPException(status_code=500, detail="Failed to trigger manual sync.")

@@ -49,36 +49,47 @@ def scheduled_job():
         logger.info(f"ADAPTIVE POLLING: Shigra (Routine). Relaxing polling interval to {APP_CONFIG['scheduler']['routine_interval_seconds']} seconds.")
         scheduler.reschedule_job('fetch_alerts_job', trigger='interval', seconds=APP_CONFIG['scheduler']['routine_interval_seconds'])
 
-def geocode_missing_cities_job():
+def geocode_missing_cities_job(limit_to_five: bool = True):
     """
     Background worker that slowly populates missing geolocations.
     1. Fetches only missing places ever recorded in the database natively.
-    2. Feeds a small batch (e.g. 5) to the GeocodeService to avoid rate-limits.
+    2. Feeds a batch to the GeocodeService.
+    If limit_to_five is True (default for scheduled runs), processes only 5 at a time.
+    If False (manual sync), processes all currently missing cities.
     """
     import asyncio
     
-    # Pass known cities so SQL filters them out directly
-    cached_cities = list(geocode_service.cache.keys())
-    missing_cities = get_missing_cities(cached_cities)
+    # We load cache explicitly to know what to query
+    from app.services.geocode_service import GeocodeService
+    
+    missing_cities = get_missing_cities()
     
     if not missing_cities:
-        # Avoid spamming logs if everything is fully geocoded
         return
         
     logger.info(f"[GEO BG] Found {len(missing_cities)} total missing geolocations in the database.")
     
-    # Process just a small batch (e.g. 5 at a time) to stay far under Nominatim limits
-    batch = missing_cities[:5]
-    logger.info(f"[GEO BG] Processing batch: {batch}")
+    batch = missing_cities[:5] if limit_to_five else missing_cities
+    logger.info(f"[GEO BG] Processing batch of {len(batch)} cities.")
     
-    # We must run the async function in a sync wrapper since APScheduler is sync here
     async def feed_geocode_service():
-        await geocode_service.get_coordinates(batch)
+        # Instantiate a completely fresh isolated Service just for this thread's event loop
+        local_service = GeocodeService()
+        await local_service.start()
+        try:
+            await local_service.get_coordinates(batch)
+        finally:
+            await local_service.close()
         
     try:
-        # If there's an existing event loop, use run_coroutine_threadsafe 
-        # But in a standard background thread, asyncio.run is usually fine
-        asyncio.run(feed_geocode_service())
+        # Create a completely fresh event loop for this background thread explicitly
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            loop.run_until_complete(feed_geocode_service())
+        finally:
+            loop.close()
+            
         logger.info(f"[GEO BG] Successfully processed batch of {len(batch)} cities.")
     except Exception as e:
         logger.error(f"[GEO BG] Error running geocode batch: {e}")
@@ -244,7 +255,7 @@ async def serve_page(request: Request, page: str):
     """
     Serves generic sub-pages (About, Contact, Terms, etc.) directly from Jinja templates.
     """
-    valid_pages = ["about", "contact", "terms", "accessibility", "privacy", "sitemap", "stats", "archive"]
+    valid_pages = ["about", "contact", "terms", "accessibility", "privacy", "sitemap", "stats", "archive", "geolocations"]
     if page in valid_pages:
         return templates.TemplateResponse(f"{page}.html", {"request": request})
     

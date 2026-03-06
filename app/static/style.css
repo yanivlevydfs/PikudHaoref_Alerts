@@ -834,7 +834,7 @@ h3 {
     z-index: 1000;
     padding: 0.8rem 1.5rem;
     border-radius: 30px;
-    background: rgba(0, 0, 0, 0.4);
+    background: rgba(0, 0, 0, 0.7);
     backdrop-filter: blur(10px);
     border: 1px solid var(--border-glass);
 }
@@ -1159,19 +1159,21 @@ h3 {
     display: flex;
     align-items: center;
     gap: 12px;
-    padding: 14px 24px;
-    background: rgba(255, 59, 59, 0.15);
-    backdrop-filter: blur(16px) saturate(180%);
-    -webkit-backdrop-filter: blur(16px) saturate(180%);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 12px 24px;
+    background: rgba(239, 68, 68, 0.85);
+    /* More vibrant, solid red (Tailwind-like red-500) */
+    backdrop-filter: blur(12px) saturate(180%);
+    -webkit-backdrop-filter: blur(12px) saturate(180%);
+    border: 1px solid rgba(255, 255, 255, 0.2);
     border-radius: 50px;
     color: white;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
     font-weight: 700;
     font-size: 1.1rem;
     cursor: pointer;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3), 0 0 15px rgba(239, 68, 68, 0.3);
     transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-    animation: pwaSlideIn 0.8s backwards, pwaPulse 2s infinite 2s;
+    animation: pwaSlideIn 0.8s backwards, pwaPulse 2s infinite 2.5s;
     white-space: nowrap;
 }
 

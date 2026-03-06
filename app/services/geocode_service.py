@@ -26,43 +26,39 @@ class GeocodeService:
 
     def __init__(
         self,
-        cache_file: str = CACHE_FILE,
         timeout: float = 10.0,
         max_concurrency: int = 2,
         min_delay_seconds: float = 2.0,  # Nominatim is strict; 2.0s to be extra safe
         user_agent: str = "PikudHaoref_Alerts/1.2 (contact: admin@admin.com)",
     ):
-        self.cache_file = cache_file
         self.timeout = timeout
         self.user_agent = user_agent
+        self.max_concurrency = max_concurrency
 
-        self.cache: Dict[str, Any] = {}
         self._in_progress: Dict[str, asyncio.Task] = {}
+        
+        # Async objects lazily initialized to safely attach to the calling thread's event loop
+        self._semaphore:  Optional[asyncio.Semaphore] = None
+        self._rate_lock:  Optional[asyncio.Lock] = None
 
-        self._cache_dirty: bool = False
-        self._cache_lock = asyncio.Lock()  # protects cache + dirty flag + save
-
-        self._semaphore = asyncio.Semaphore(max_concurrency)
-
-        # Global throttling across *all* outgoing requests.
-        self._rate_lock = asyncio.Lock()
         self._min_delay = float(min_delay_seconds)
         self._last_request_ts: float = 0.0
 
         self._client: Optional[httpx.AsyncClient] = None
 
-        # Ensure db directory exists early
-        os.makedirs(os.path.dirname(self.cache_file), exist_ok=True)
-        self._load_cache()
-
     # ----------------------------
     # Lifecycle (recommended)
     # ----------------------------
     async def start(self) -> None:
-        """Create the shared AsyncClient (connection pooling)."""
+        """Create the shared AsyncClient and thread-bound locks."""
+        if self._rate_lock is None:
+            self._rate_lock = asyncio.Lock()
+        if self._semaphore is None:
+            self._semaphore = asyncio.Semaphore(self.max_concurrency)
+
         if self._client is None:
             self._client = httpx.AsyncClient(timeout=self.timeout)
-            logger.info("[GEO] httpx.AsyncClient started.")
+            logger.info("[GEO] httpx.AsyncClient and EventLoop Locks started.")
 
     async def close(self) -> None:
         """Close the shared AsyncClient."""
@@ -72,73 +68,37 @@ class GeocodeService:
             logger.info("[GEO] httpx.AsyncClient closed.")
 
     # ----------------------------
-    # Cache I/O
-    # ----------------------------
-    def _load_cache(self) -> None:
-        if os.path.exists(self.cache_file):
-            try:
-                with open(self.cache_file, "r", encoding="utf-8") as f:
-                    self.cache = json.load(f)
-                
-                logger.info("[GEO] Loaded %d cached coordinates from disk.", len(self.cache))
-            except Exception as e:
-                logger.error("[GEO] Failed to load geo cache: %s", e)
-                self.cache = {}
-        else:
-            self.cache = {}
-
-    def _atomic_write_json(self, path: str, data: Dict[str, Any]) -> None:
-        """Atomic write to avoid corrupted cache files on crash."""
-        tmp_path = f"{path}.tmp"
-        with open(tmp_path, "w", encoding="utf-8") as f:
-            # Faster than pretty indent, still UTF-8 safe
-            json.dump(data, f, ensure_ascii=False, separators=(",", ":"))
-        os.replace(tmp_path, path)
-
-    async def _save_cache_if_dirty(self) -> None:
-        async with self._cache_lock:
-            if not self._cache_dirty:
-                return
-            try:
-                # Copy to avoid holding lock during disk write if you want; keeping it simple+safe.
-                snapshot = dict(self.cache)
-                self._atomic_write_json(self.cache_file, snapshot)
-                self._cache_dirty = False
-                logger.info("[GEO] Saved geo cache (%d entries).", len(snapshot))
-            except Exception as e:
-                logger.error("[GEO] Failed to save geo cache: %s", e)
-
-    # ----------------------------
     # Public API
     # ----------------------------
     async def get_coordinates(self, cities: List[str]) -> Dict[str, Any]:
         """
         Returns a mapping: city -> GeoJSON OR "NOT_FOUND"
-        Uses cache first; fetches missing entries concurrently (bounded + rate-limited).
+        Checks the SQLite database first; fetches missing entries concurrently.
         """
         if not cities:
             return {}
 
-        await self.start()  # ensure client exists
+        await self.start()
 
-        # Deduplicate while preserving order (important if callers expect stable behavior)
+        # Local import to avoid circular dependencies
+        from app.db.database import get_geolocation_by_city
+
         cities_unique = list(dict.fromkeys(cities))
-
         results: Dict[str, Any] = {}
         missing: List[str] = []
 
-        # Fast cache hits
-        async with self._cache_lock:
-            for city in cities_unique:
-                if city in self.cache:
-                    results[city] = self.cache[city]
-                else:
-                    missing.append(city)
+        # Fast Database hits
+        for city in cities_unique:
+            db_hit = get_geolocation_by_city(city)
+            if db_hit is not None:
+                results[city] = db_hit
+            else:
+                missing.append(city)
 
         if not missing:
             return results
 
-        # Create or reuse tasks per missing city
+        # Create or reuse concurrent tasks per missing city
         fetch_pairs: List[Tuple[str, asyncio.Task]] = []
         for city in missing:
             existing = self._in_progress.get(city)
@@ -149,7 +109,6 @@ class GeocodeService:
                 self._in_progress[city] = task
                 fetch_pairs.append((city, task))
 
-        # Await all concurrently (not sequentially)
         tasks = [t for _, t in fetch_pairs]
         task_results = await asyncio.gather(*tasks, return_exceptions=True)
 
@@ -160,8 +119,6 @@ class GeocodeService:
             else:
                 results[city] = r
 
-        # Save once (and only if dirty)
-        await self._save_cache_if_dirty()
         return results
 
     # ----------------------------
@@ -169,15 +126,18 @@ class GeocodeService:
     # ----------------------------
     async def _fetch_and_cache(self, city: str) -> Any:
         """
-        Fetch from Nominatim and store in cache. Always clears _in_progress entry.
+        Fetch from Nominatim and store directly in the SQLite database.
         """
+        from app.db.database import save_geolocation
+        
         try:
             geo_data = await self._fetch_from_nominatim(city)
-            async with self._cache_lock:
-                self.cache[city] = geo_data
-                self._cache_dirty = True
+            is_found = geo_data != "NOT_FOUND"
+            
+            # Save strictly to the DB without local state mutation
+            save_geolocation(city, is_found, geo_data if is_found else None)
                 
-            if geo_data != "NOT_FOUND":
+            if is_found:
                 logger.info(f"[GEO BG] ✅ SUCCESS: GeoLocation found for '{city}'")
             else:
                 logger.warning(f"[GEO BG] ❌ FAILED: No GeoLocation found for '{city}'")
