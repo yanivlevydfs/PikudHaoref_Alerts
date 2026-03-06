@@ -193,28 +193,44 @@ def get_alert_statistics(timeframe="24h"):
         logger.error(f"Error fetching alert statistics: {e}")
         return []
 
-def get_all_unique_cities():
+def get_missing_cities(known_cities):
     """
-    Fetches a flat list of all unique cities/places ever intercepted and stored in the database.
+    Fetches a flat list of all unique cities/places ever intercepted and stored in the database,
+    excluding those that are already in the known_cities list.
     This serves as the master list for the background geocoding service.
     """
     try:
         with get_db_connection() as conn:
             cursor = conn.cursor()
             
-            # json_each unpacking gives us individual city strings flatly
-            query = '''
-                SELECT DISTINCT j.value as city
-                FROM alerts, json_each(alerts.locations_json) as j
-            '''
-            cursor.execute(query)
+            if not known_cities:
+                query = '''
+                    SELECT DISTINCT j.value as city
+                    FROM alerts, json_each(alerts.locations_json) as j
+                '''
+                cursor.execute(query)
+            else:
+                # To securely pass a dynamic list of known cities, we use parameter substitution.
+                # SQLite has a limit on parameters, but usually it's fine for ~999. 
+                # If cached_cities exceeds 900, we'll chunk it or rely on Python filtering.
+                # Given Israel's scale, bounding to 900 is safe for a single query.
+                safe_known = list(known_cities)[:900]
+                placeholders = ','.join(['?'] * len(safe_known))
+                query = f'''
+                    SELECT DISTINCT j.value as city
+                    FROM alerts, json_each(alerts.locations_json) as j
+                    WHERE city NOT IN ({placeholders})
+                '''
+                cursor.execute(query, safe_known)
             
             rows = cursor.fetchall()
             cities = [row["city"] for row in rows if row["city"]]
+            
+            logger.info(f"[DB GEO] Fetched {len(cities)} missing cities requiring geolocation.")
             return cities
             
     except Exception as e:
-        logger.error(f"Error fetching all unique cities: {e}")
+        logger.error(f"Error fetching missing cities: {e}")
         return []
 
 def set_system_state(key, value):

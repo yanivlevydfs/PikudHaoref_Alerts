@@ -176,6 +176,12 @@ class GeocodeService:
             async with self._cache_lock:
                 self.cache[city] = geo_data
                 self._cache_dirty = True
+                
+            if geo_data != "NOT_FOUND":
+                logger.info(f"[GEO BG] ✅ SUCCESS: GeoLocation found for '{city}'")
+            else:
+                logger.warning(f"[GEO BG] ❌ FAILED: No GeoLocation found for '{city}'")
+                
             return geo_data
         finally:
             self._in_progress.pop(city, None)

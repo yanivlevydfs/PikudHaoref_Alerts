@@ -8,7 +8,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from app.core.config import APP_CONFIG
 from app.services.oref_client import fetch_active_alerts
 from app.services.alert_state import global_alert_state
-from app.db.database import init_db, insert_alert_if_new, get_all_unique_cities
+from app.db.database import init_db, insert_alert_if_new, get_missing_cities
 import os
 from app.services.geocode_service import geocode_service
 
@@ -52,16 +52,14 @@ def scheduled_job():
 def geocode_missing_cities_job():
     """
     Background worker that slowly populates missing geolocations.
-    1. Fetches all unique places ever recorded in the database.
-    2. Checks the geo_cache to see which ones are missing.
-    3. Feeds a small batch (e.g. 5) to the GeocodeService to avoid rate-limits.
+    1. Fetches only missing places ever recorded in the database natively.
+    2. Feeds a small batch (e.g. 5) to the GeocodeService to avoid rate-limits.
     """
     import asyncio
     
-    unique_cities = get_all_unique_cities()
-    cached_cities = geocode_service.cache.keys()
-    
-    missing_cities = [city for city in unique_cities if city not in cached_cities]
+    # Pass known cities so SQL filters them out directly
+    cached_cities = list(geocode_service.cache.keys())
+    missing_cities = get_missing_cities(cached_cities)
     
     if not missing_cities:
         # Avoid spamming logs if everything is fully geocoded
