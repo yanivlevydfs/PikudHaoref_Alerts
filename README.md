@@ -30,25 +30,25 @@ This repository contains a FastAPI wrapper around the official Israel Home Front
 
 ## Setup Instructions
 
-1. **Clone the repository:**
-   ```bash
-   git clone <repository_url>
-   cd PikudHaoref_Alerts
-   ```
+1.  **Clone the repository:**
+    ```bash
+    git clone <repository_url>
+    cd PikudHaoref_Alerts
+    ```
 
-2. **Create a virtual environment (optional but recommended):**
-   ```bash
-   python -m venv venv
-   # On Windows:
-   venv\Scripts\activate
-   # On macOS/Linux:
-   source venv/bin/activate
-   ```
+2.  **Create a virtual environment (optional but recommended):**
+    ```bash
+    python -m venv venv
+    # On Windows:
+    venv\Scripts\activate
+    # On macOS/Linux:
+    source venv/bin/activate
+    ```
 
-3. **Install dependencies:**
-   ```bash
-   pip install -r requirements.txt
-   ```
+3.  **Install dependencies:**
+    ```bash
+    pip install -r requirements.txt
+    ```
 
 ## Running the Application
 
@@ -68,7 +68,9 @@ Once the application is running, you can explore and test the endpoints directly
 
 ## Configuration
 
-The├── app/
+The project structure is as follows:
+
+├── app/
 │   ├── api/
 │   │   └── routes.py         # Defines the FastAPI endpoints (e.g., /api/alerts)
 │   ├── core/
@@ -87,7 +89,43 @@ The├── app/
 ├── requirements.txt          # Python dependencies
 ├── architecture.md           # This file
 ├── README.md                 # Project description and run instructions
-└── config.json               # System configuration (Intervals & Proxy) in `config.json`.
+└── config.json               # System configuration (Intervals & Proxy)
+
+## Components
+
+### 1. The FastAPI Application & Scheduler (`app/main.py`)
+The entry point of the app. It initializes FastAPI, sets up the **Lifespan** handler to start a **BackgroundScheduler**. The scheduler periodically (every 10s-120s) triggers the alert fetching job.
+
+### 2. Alert State Management (`app/services/alert_state.py`)
+A thread-safe singleton that holds the current "active" alerts. It implements **Accumulation Logic**: when new alerts arrive, they are merged with existing ones so that map markers persist throughout a barrage. It only clears when the API explicitly returns an empty response. It also tracks the `is_online` status of the system.
+
+### 3. Environment-Aware Client (`app/services/oref_client.py`)
+Handles the complex interaction with Oref's servers. It detects the environment (Railway vs. Local) and automatically decides whether to use a dedicated high-performance proxy (configured in `config.json`) or a direct connection (Local) to bypass 403 blocks.
+
+### 4. Database Layer (`app/db/database.py`)
+Manages a local **SQLite database** (`app/db/alerts_history.db`). It records unique alerts, prevents duplicates, and provides statistical aggregations for the `/stats` page.
+
+### 5. Frontend Dashboard (`app/static/` & `app/templates/`)
+A modern, dark-themed dashboard using **Leaflet.js** for mapping. It polls the `/api/alerts` endpoint every 10s and uses **Select2** for city searching. It includes visual warning banners for system errors.
+
+## Configuration
+
+The application uses a `config.json` file in the root directory for core settings:
+
+```json
+{
+    "scheduler": {
+        "routine_interval_seconds": 120,
+        "emergency_interval_seconds": 10
+    },
+    "map": {
+        "marker_display_duration_minutes": 10
+    }
+}
+```
+- **routine_interval_seconds**: Polling frequency when no alerts are active.
+- **emergency_interval_seconds**: High-speed polling frequency during a detected attack.
+- **marker_display_duration_minutes**: How long city markers securely persist on the dashboard map after the alert begins.
 
 ## Proxy Management
 
