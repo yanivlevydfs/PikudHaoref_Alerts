@@ -2,6 +2,14 @@
 
 This repository contains a FastAPI wrapper around the official Israel Home Front Command (Pikud Haoref) alerts API. It provides a structured, modern API endpoint to fetch real-time active alerts, complete with built-in interactive Swagger UI documentation and standardized logging.
 
+## Screenshots
+
+<div align="center">
+  <img src="screenshots/noalarm.jpg" width="45%" alt="No Active Alerts Interface">
+  <img src="screenshots/alarmsexists.jpg" width="45%" alt="Active Attack Interface">
+</div>
+
+
 ## Features
 
 - **Real-time Dashboard**: Interactive Map (Leaflet) with live alert updates and visual status indicators.
