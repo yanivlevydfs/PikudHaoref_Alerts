@@ -139,6 +139,8 @@ desktopToggle.addEventListener('change', (e) => {
 
 testSoundBtn.addEventListener('click', () => {
     playAlertAudio(true); // Force play for testing
+    speakAlert("בדיקת מערכת. שומעים עברית מצוין.");
+    showDesktopNotification("בדיקת מערכת", "התרעות שולחן עבודה פועלות בהצלחה!");
 });
 
 // --- Bottom Sheet Interaction Logic ---
@@ -328,6 +330,25 @@ function updateUI(data) {
             locationsList.appendChild(li);
         });
         citySelect.trigger('change');
+
+        // --- TRIGGER NOTIFICATIONS & MEDIA ---
+        // Only trigger on NEW alerts!
+        const locationsText = alertData.data.slice(0, 10).join(', ') + (alertData.data.length > 10 ? ' ועוד...' : '');
+
+        if (desktopToggle && desktopToggle.checked) {
+            showDesktopNotification(alertTitle.innerText, locationsText);
+        }
+
+        if (soundToggle && soundToggle.checked) {
+            playAlertAudio(false);
+        }
+
+        if (voiceToggle && voiceToggle.checked) {
+            speakAlert(`צבע אדום ב: ${locationsText}`);
+        }
+
+        // Refresh history since there is a new alert!
+        fetchHistory();
     }
 
     // Update status based on current response
@@ -339,24 +360,6 @@ function updateUI(data) {
 
     // Trigger Geo-cording and Mapping
     plotCitiesOnMap(alertData.data);
-
-    // --- TRIGGER NOTIFICATIONS & MEDIA ---
-    const locationsText = alertData.data.slice(0, 10).join(', ') + (alertData.data.length > 10 ? ' ועוד...' : '');
-
-    if (desktopToggle.checked) {
-        showDesktopNotification(alertTitle.innerText, locationsText);
-    }
-
-    if (soundToggle.checked) {
-        playAlertAudio(false);
-    }
-
-    if (voiceToggle.checked) {
-        speakAlert(`צבע אדום ב: ${locationsText}`);
-    }
-
-    // Refresh history since there is a new alert!
-    fetchHistory();
 }
 
 let isMappingInProgress = false;
@@ -639,12 +642,27 @@ async function fetchHistory() {
 }
 
 // Media & Notification Helpers
-function playAlertAudio(force = false) {
-    if (!force && !soundToggle.checked) return;
+let audioCtx = null;
+function initAudio() {
+    if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+    }
+}
+// Unlock audio contexts on first user interaction
+document.addEventListener('click', initAudio, { once: true });
+document.addEventListener('touchstart', initAudio, { once: true });
+document.addEventListener('keydown', initAudio, { once: true });
 
-    // Instead of missing MP3 files, generate a synthetic alarm using Web Audio API!
-    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    const type = soundSelect.value;
+function playAlertAudio(force = false) {
+    if (!force && (!soundToggle || !soundToggle.checked)) return;
+
+    initAudio();
+    if (!audioCtx) return;
+
+    const type = soundSelect ? soundSelect.value : 'bell';
 
     if (type === 'bell') {
         const osc = audioCtx.createOscillator();
@@ -687,7 +705,16 @@ function showDesktopNotification(title, body) {
     if (Notification.permission === "granted") {
         new Notification(title, {
             body: body,
-            icon: '/static/favicon.ico' // Or any alert icon
+            icon: '/static/icon.png' // Valid icon path
+        });
+    } else if (Notification.permission !== "denied") {
+        Notification.requestPermission().then(permission => {
+            if (permission === "granted") {
+                new Notification(title, {
+                    body: body,
+                    icon: '/static/icon.png'
+                });
+            }
         });
     }
 }

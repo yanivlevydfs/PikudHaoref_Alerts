@@ -20,38 +20,51 @@
     <link rel="icon" type="image/png" href="/static/icon.png">
     <link rel="manifest" href="/manifest.json">
     <meta name="theme-color" content="#ff3b3b">
+    <!-- SEO Best Practices -->
     <meta name="description"
-        content="מערכת התרעות בזמן אמת עבור ירי רקטות וטילים בישראל. הישארו מעודכנים עם נתוני פיקוד העורף, מפות אינטראקטיביות וסטטיסטיקה.">
-    <meta name="keywords" content="צבע אדום, התרעות, פיקוד העורף, רקטות, טילים, ביטחון, ישראל, מפת התרעות">
+        content="{% block meta_description %}מערכת התרעות בזמן אמת עבור ירי רקטות וטילים בישראל. הישארו מעודכנים עם נתוני פיקוד העורף, מפות אינטראקטיביות וסטטיסטיקה.{% endblock %}">
+    <meta name="keywords" content="צבע אדום, התרעות, פיקוד העורף, רקטות, טילים, ביטחון, ישראל, מפת התרעות, אזעקה, חרום">
     <meta name="author" content="Yaniv Levy">
+    <link rel="canonical"
+        href="https://alerts.up.railway.app{{ request.url.path if request and request.url else '' }}" />
 
     <!-- Open Graph / Facebook -->
     <meta property="og:type" content="website">
-    <meta property="og:url" content="https://alerts.up.railway.app/">
-    <meta property="og:title" content="התרעות ביטחוניות - מערכת התרעות בזמן אמת">
-    <meta property="og:description" content="מערכת התרעות בזמן אמת עבור ירי רקטות וטילים בישראל.">
-    <meta property="og:image" content="/static/icon.png">
+    <meta property="og:url"
+        content="https://alerts.up.railway.app{{ request.url.path if request and request.url else '' }}">
+    <meta property="og:title" content="{% block og_title %}התרעות ביטחוניות - מערכת התרעות בזמן אמת{% endblock %}">
+    <meta property="og:description"
+        content="{% block og_description %}מערכת התרעות בזמן אמת עבור ירי רקטות וטילים בישראל. מפות אינטראקטיביות היסטוריה מלאה.{% endblock %}">
+    <meta property="og:image" content="https://alerts.up.railway.app/static/icon.png">
+    <meta property="og:locale" content="he_IL">
+    <meta property="og:site_name" content="התרעות ביטחוניות">
 
     <!-- Twitter -->
     <meta property="twitter:card" content="summary_large_image">
-    <meta property="twitter:url" content="https://alerts.up.railway.app/">
-    <meta property="twitter:title" content="התרעות ביטחוניות - מערכת התרעות בזמן אמת">
-    <meta property="twitter:description" content="מערכת התרעות בזמן אמת עבור ירי רקטות וטילים בישראל.">
-    <meta property="twitter:image" content="/static/icon.png">
+    <meta property="twitter:url"
+        content="https://alerts.up.railway.app{{ request.url.path if request and request.url else '' }}">
+    <meta property="twitter:title"
+        content="{% block twitter_title %}התרעות ביטחוניות - מערכת התרעות בזמן אמת{% endblock %}">
+    <meta property="twitter:description"
+        content="{% block twitter_description %}מערכת התרעות בזמן אמת עבור ירי רקטות וטילים בישראל. מפות אינטראקטיביות היסטוריה מלאה.{% endblock %}">
+    <meta property="twitter:image" content="https://alerts.up.railway.app/static/icon.png">
 
     <!-- JSON-LD Structured Data -->
     <script type="application/ld+json">
     {
       "@context": "https://schema.org",
       "@type": "WebApplication",
-      "name": "התרעות ביטחוניות",
+      "name": "התרעות ביטחוניות - מערכת התרעות בזמן אמת",
       "url": "https://alerts.up.railway.app/",
-      "description": "Real-time security alerts system for Israel",
+      "description": "מערכת דיווח התרעות פיקוד העורף בזמן אמת. צבע אדום, מפות אינטראקטיביות וסטטיסטיקה.",
       "applicationCategory": "SafetyApplication",
       "operatingSystem": "All",
+      "inLanguage": "he-IL",
+      "image": "https://alerts.up.railway.app/static/icon.png",
       "author": {
         "@type": "Person",
-        "name": "Yaniv Levy"
+        "name": "Yaniv Levy",
+        "url": "https://www.linkedin.com/in/yanivlevy/"
       }
     }
     </script>
@@ -68,13 +81,26 @@
                 <span class="logo-text">התראות ביטחוניות</span>
             </a>
         </div>
-        <nav class="header-nav">
+
+        <div class="mobile-menu-toggle" id="mobileMenuBtn">
+            <span></span>
+            <span></span>
+            <span></span>
+        </div>
+
+        <nav class="header-nav" id="headerNav">
             <a href="/">ראשי</a>
             <a href="/archive">ארכיון</a>
             <a href="/stats">סטטיסטיקה</a>
             <a href="/geolocations">מיקומים</a>
             <a href="/about">אודות</a>
             <a href="/contact">צור קשר</a>
+
+            <!-- Mobile Only Links (imported from footer) -->
+            <a href="/terms" class="mobile-only-link">תנאי שימוש</a>
+            <a href="/accessibility" class="mobile-only-link">נגישות</a>
+            <a href="/privacy" class="mobile-only-link">הצהרת פרטיות</a>
+            <a href="/sitemap" class="mobile-only-link">מפת אתר</a>
         </nav>
         <div class="header-clock" id="global-clock">
             <span class="clock-date" id="clock-date"></span>
@@ -110,6 +136,16 @@
 
     <script>
         document.getElementById('currentYear').innerText = new Date().getFullYear();
+
+        // Mobile Menu Logic
+        const mobileMenuBtn = document.getElementById('mobileMenuBtn');
+        const headerNav = document.getElementById('headerNav');
+        if (mobileMenuBtn && headerNav) {
+            mobileMenuBtn.addEventListener('click', () => {
+                mobileMenuBtn.classList.toggle('active');
+                headerNav.classList.toggle('active');
+            });
+        }
 
         // Global Clock Logic
         function updateGlobalClock() {

@@ -2,6 +2,7 @@
 
 This repository contains a FastAPI wrapper around the official Israel Home Front Command (Pikud Haoref) alerts API. It provides a structured, modern API endpoint to fetch real-time active alerts, complete with built-in interactive Swagger UI documentation and standardized logging.
 
+**🔴 Live Demo:** [https://alerts.up.railway.app/](https://alerts.up.railway.app/)
 ## Screenshots
 
 <div align="center">
