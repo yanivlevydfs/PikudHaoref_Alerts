@@ -195,20 +195,44 @@ $(document).ready(function () {
         }
     });
 
-    // Load High-Performance Local Polygons
-    fetch('/static/locations_polygons.json')
-        .then(res => res.json())
-        .then(data => {
-            localGeoData = data;
-            console.log(`[GEO] Loaded ${Object.keys(localGeoData).length} local polygons.`);
-        })
-        .catch(err => console.error("[GEO] Failed to load local polygons:", err));
+    // --- New: Local Polygon Caching System ---
+    const POLYGON_CACHE_KEY = 'geo_polygons_cache';
+    const POLYGON_VERSION_KEY = 'geo_polygons_version';
+    const CURRENT_POLYGON_VERSION = "v1.1"; // Change this to force all clients to re-fetch
+
+    const cachedPolygons = localStorage.getItem(POLYGON_CACHE_KEY);
+    const cachedVersion = localStorage.getItem(POLYGON_VERSION_KEY);
+
+    if (cachedPolygons && cachedVersion === CURRENT_POLYGON_VERSION) {
+        try {
+            localGeoData = JSON.parse(cachedPolygons);
+        } catch (e) {
+            console.warn("[GEO] Cache corrupted, re-fetching...");
+            fetchPolygons();
+        }
+    } else {
+        fetchPolygons();
+    }
+
+    function fetchPolygons() {
+        fetch('/static/locations_polygons.json')
+            .then(res => res.json())
+            .then(data => {
+                localGeoData = data;
+                try {
+                    localStorage.setItem(POLYGON_CACHE_KEY, JSON.stringify(data));
+                    localStorage.setItem(POLYGON_VERSION_KEY, CURRENT_POLYGON_VERSION);
+                } catch (e) {
+                    console.warn("[GEO] LocalStorage full, polygons will reload next time.");
+                }
+            })
+            .catch(err => console.error("[GEO] Failed to load local polygons:", err));
+    }
 });
 
 // Caching Geocoding Results to be gentle on Nominatim
 let cacheVersion = localStorage.getItem('geoCacheVersion');
 if (cacheVersion !== "2") {
-    console.log("Purging old poisoned geocache.");
     localStorage.removeItem('geoCache');
     localStorage.setItem('geoCacheVersion', "2");
 }
@@ -745,6 +769,10 @@ const pwaInstallBtn = document.getElementById('pwa-install-btn');
 window.addEventListener('beforeinstallprompt', (e) => {
     // Prevent the mini-infobar from appearing on mobile
     e.preventDefault();
+
+    // Desktop devices shouldn't see the mobile install button
+    if (window.innerWidth > 768) return;
+
     // Stash the event so it can be triggered later.
     deferredPrompt = e;
 
@@ -756,8 +784,6 @@ window.addEventListener('beforeinstallprompt', (e) => {
             pwaInstallBtn.style.opacity = '1';
             pwaInstallBtn.style.transform = 'translate(-50%, 0)';
         }, 10);
-
-        console.log('PWA: Install prompt available, showing button.');
 
         // Auto-hide after 7 seconds
         setTimeout(() => {
@@ -781,7 +807,6 @@ if (pwaInstallBtn) {
 
         // Wait for the user to respond to the prompt
         const { outcome } = await deferredPrompt.userChoice;
-        console.log(`PWA: User response to install prompt: ${outcome}`);
 
         // We've used the prompt, and can't use it again, throw it away
         deferredPrompt = null;
@@ -793,6 +818,5 @@ if (pwaInstallBtn) {
 
 window.addEventListener('appinstalled', () => {
     // Log install to analytics or hide UI
-    console.log('PWA: App was installed successfully.');
     if (pwaInstallBtn) pwaInstallBtn.style.display = 'none';
 });
