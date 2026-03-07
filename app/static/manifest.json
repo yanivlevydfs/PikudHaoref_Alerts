@@ -1,7 +1,7 @@
 {
-    "name": "התרעות ביטחוניות",
-    "short_name": "התרעות",
-    "description": "מערכת התרעות בזמן אמת עבור ירי רקטות וטילים",
+    "name": "התראות ביטחוניות",
+    "short_name": "התראות",
+    "description": "מערכת התראות בזמן אמת עבור ירי רקטות וטילים",
     "start_url": "/",
     "display": "standalone",
     "background_color": "#0b0e14",

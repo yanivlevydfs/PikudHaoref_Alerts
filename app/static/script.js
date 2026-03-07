@@ -140,7 +140,7 @@ desktopToggle.addEventListener('change', (e) => {
 testSoundBtn.addEventListener('click', () => {
     playAlertAudio(true); // Force play for testing
     speakAlert("בדיקת מערכת. שומעים עברית מצוין.");
-    showDesktopNotification("בדיקת מערכת", "התרעות שולחן עבודה פועלות בהצלחה!");
+    showDesktopNotification("בדיקת מערכת", "התראות שולחן עבודה פועלות בהצלחה!");
 });
 
 // --- Bottom Sheet Interaction Logic ---
@@ -307,7 +307,7 @@ function updateUI(data) {
         if (data && data.is_online === false) {
             setStatus('danger', 'מערכת לא זמינה');
         } else {
-            setStatus('safe', 'שגרה - אין התרעות');
+            setStatus('safe', 'שגרה - אין התראות');
         }
 
         citySelect.empty().trigger('change'); // Clear Dropdown
@@ -657,7 +657,7 @@ async function fetchHistory() {
                 historyContent.appendChild(el);
             });
         } else {
-            historyContent.innerHTML = 'אין התרעות ב-24 שעות האחרונות. נהדר!';
+            historyContent.innerHTML = 'אין התראות ב-24 שעות האחרונות. נהדר!';
         }
     } catch (err) {
         console.error("Failed to fetch history", err);

@@ -178,9 +178,9 @@
 
 <div class="page-container glass-panel">
     <header class="page-header" style="text-align: center; margin-bottom: 2rem;">
-        <h1 style="color: #ff3b3b; font-size: 2.5rem; text-shadow: 0 0 10px rgba(255, 59, 59, 0.3);">סטטיסטיקות התרעות
+        <h1 style="color: #ff3b3b; font-size: 2.5rem; text-shadow: 0 0 10px rgba(255, 59, 59, 0.3);">סטטיסטיקות התראות
         </h1>
-        <p class="subtitle" style="font-size: 1.2rem; color: var(--text-secondary);">ניתוח התרעות לפי ערים וזמנים</p>
+        <p class="subtitle" style="font-size: 1.2rem; color: var(--text-secondary);">ניתוח התראות לפי ערים וזמנים</p>
     </header>
 
     <div class="page-content" style="max-width: 900px; margin: 0 auto;">
@@ -192,7 +192,7 @@
                     style="color: var(--safe-color); font-size: 2rem; display: flex; align-items: center; justify-content: center; gap: 10px;">
                     <span style="font-size: 2.5rem;">🌙</span> זמני שקט - מתי הכי בטוח?
                 </h2>
-                <p style="color: var(--text-secondary);">ניתוח התפלגות התרעות לפי שעות היממה</p>
+                <p style="color: var(--text-secondary);">ניתוח התפלגות התראות לפי שעות היממה</p>
             </header>
 
             <div
@@ -249,7 +249,7 @@
                     <tr>
                         <th style="width: 10%;">דירוג</th>
                         <th style="width: 70%;">אזור / יישוב</th>
-                        <th style="width: 20%;">מספר התרעות</th>
+                        <th style="width: 20%;">מספר התראות</th>
                     </tr>
                 </thead>
                 <tbody id="stats-body">
@@ -349,7 +349,7 @@
 
             if (!isCityFilter) {
                 document.getElementById('global-quietest-hour').innerText = `${quietest.hour}:00`;
-                document.getElementById('global-quietest-count').innerText = `רק ${quietest.count.toLocaleString()} התרעות לאורך ההיסטוריה`;
+                document.getElementById('global-quietest-count').innerText = `רק ${quietest.count.toLocaleString()} התראות לאורך ההיסטוריה`;
             } else {
                 document.getElementById('city-quietest-hour').innerText = `${quietest.hour}:00`;
             }
@@ -371,7 +371,7 @@
                     data: {
                         labels: labels,
                         datasets: [{
-                            label: 'מספר התרעות',
+                            label: 'מספר התראות',
                             data: counts,
                             backgroundColor: backgroundColors,
                             borderColor: 'rgba(255, 255, 255, 0.1)',
@@ -422,7 +422,7 @@
             statsBody.innerHTML = '';
 
             if (!stats || stats.length === 0) {
-                statsBody.innerHTML = '<tr><td colspan="3"><div class="empty-state">אין התרעות בטווח הזמן שנבחר. שקט ושלווה!</div></td></tr>';
+                statsBody.innerHTML = '<tr><td colspan="3"><div class="empty-state">אין התראות בטווח הזמן שנבחר. שקט ושלווה!</div></td></tr>';
                 return;
             }
 
