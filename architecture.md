@@ -50,12 +50,29 @@ Manages a local **SQLite database** (`alerts_history.db`). It records unique ale
 ### 5. Frontend Dashboard (`app/static/` & `app/templates/`)
 A modern, dark-themed dashboard using **Leaflet.js** for mapping. It polls the `/api/alerts` endpoint every 10s and uses **Select2** for city searching. It includes visual warning banners for system errors.
 
+### 6. Swagger API Services
+The application exposes a fully documented OpenAPI (Swagger) interface at `/docs`. The architectural endpoints are categorized as follows:
+- **Alerts Core**: 
+  - `GET /api/alerts`: Real-time active alerts buffered in memory.
+  - `GET /api/config`: Injected configuration state (e.g., map marker durations).
+- **Data & History**: 
+  - `GET /api/alerts/history`: 24-hour SQL-backed chronological history.
+  - `GET /api/alerts/statistics`: Aggregated metrics over multiple timeframes (`24h` to `all`).
+  - `GET /api/alerts/quiet_times`: Analytical engine resolving historically safe hours.
+- **Geocoding Engine (OSM Fallback)**:
+  - `POST /api/geocode`: High-performance bulk geocoding resolving shapes via SQLite caches.
+  - `GET /api/geolocations_list`: Management endpoint listing cached vs. missing cities.
+  - `POST /api/geolocations/sync`: Trigger endpoint to force the background `APScheduler` worker to resolve missing coordinates immediately.
+- **Feeds & Health**: 
+  - `GET /rss`: Real-time XML feed generation.
+  - `GET /health`: Platform readiness probe.
+
 ## Technical Deep Dive
 
 ### 1. Alert Accumulation Logic
 The `AlertState` class uses a `threading.Lock` to ensure thread-safety during background updates. 
 - **Persistence**: When new alerts arrive, the system performs a `set.union()` of the incoming cities with the existing cities. 
-- **Implicit Clearing**: Cities are only removed when the API returns a success status with an empty data payload.
+- **Time-Based Expiration**: Map markers persist intelligently via the `map.marker_display_duration_minutes` configuration (default 10m). The frontend JavaScript asynchronously fetches this `/api/config` REST endpoint on load and manages graceful cleanup locally rather than relying on aggressive immediate wipes from the backend.
 - **Resilience**: If the API returns an error or a timeout occurs, the last known-good alert state is preserved to keep markers on the map, while `is_online` is flipped to `False`.
 
 ### 2. Environment-Aware Connection
@@ -91,5 +108,5 @@ The system tracks alerts in a flat SQLite table for high-performance retrieval o
     - **Local**: Routes directly through the local network.
     - **Retry Logic**: If the primary method fails, the system logs the error and maintains the last known healthy state.
 4. **State Sync**: Backend updates `AlertState` (Accumulation/Online flag).
-5. **UI Notification**: Client-side `script.js` polls every 10s. If `is_online` is `false`, it triggers the **Red System Warning Banner**.
-6. **Persistence**: Alert data is logged to SQLite and preserved in memory until an explicit clear signal.
+5. **UI Notification**: Client-side `script.js` polls every 10s. It initializes once via `/api/config` to understand visual rules. If `is_online` is `false`, it triggers the **Red System Warning Banner**. Organic JS timers ensure markers stay on screen according to config.
+6. **Persistence**: Alert data is logged to SQLite and preserved in memory.

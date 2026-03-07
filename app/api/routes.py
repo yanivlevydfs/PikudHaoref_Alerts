@@ -3,12 +3,24 @@ from typing import Optional
 from datetime import datetime
 from app.services.alert_state import global_alert_state
 from app.db.database import get_recent_alerts, get_alert_statistics
+from app.core.config import get_config
 import logging
 
 from app.api.models import AlertsResponse, HistoryResponse, StatisticsResponse
 
 router = APIRouter()
 logger = logging.getLogger("pikudhaoref_app.routes")
+
+@router.get(
+    "/api/config",
+    summary="Get App Configuration",
+    tags=["Config"]
+)
+async def get_app_config():
+    """
+    Returns the public configuration settings loaded from config.json.
+    """
+    return {"data": get_config()}
 
 @router.get(
     "/api/alerts", 

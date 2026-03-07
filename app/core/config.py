@@ -1,5 +1,6 @@
 import json
 import logging
+import copy
 from pathlib import Path
 
 logger = logging.getLogger("pikudhaoref_app.config")
@@ -17,6 +18,9 @@ DEFAULT_CONFIG = {
     "proxy": {
         "url": "185.241.5.57:3128",
         "type": "http"
+    },
+    "map": {
+        "marker_display_duration_minutes": 10
     }
 }
 
@@ -26,7 +30,7 @@ def load_config():
     If the file does not exist, it creates one with default values.
     Prioritizes Environment Variables for Proxy settings.
     """
-    config = DEFAULT_CONFIG.copy()
+    config = copy.deepcopy(DEFAULT_CONFIG)
 
     if CONFIG_FILE_PATH.exists():
         try:
@@ -37,6 +41,10 @@ def load_config():
                     config["scheduler"].update(loaded_config["scheduler"])
                 if "proxy" in loaded_config:
                     config["proxy"].update(loaded_config["proxy"])
+                if "map" in loaded_config:
+                    config["map"].update(loaded_config["map"])
+                elif "marker_display_duration_minutes" in loaded_config:
+                    config["map"]["marker_display_duration_minutes"] = loaded_config["marker_display_duration_minutes"]
                 logger.info("Configuration loaded from file.")
         except Exception as e:
             logger.error(f"Failed to load configuration file: {e}. Using defaults.")

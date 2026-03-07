@@ -6,5 +6,8 @@
     "proxy": {
         "url": "185.241.5.57:3128",
         "type": "http"
+    },
+    "map": {
+        "marker_display_duration_minutes": 10
     }
 }

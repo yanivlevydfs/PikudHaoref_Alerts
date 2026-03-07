@@ -89,6 +89,8 @@ customControls.addTo(map);
 let currentAlertId = null;
 let currentCitiesHash = ""; // Track hash of cities to avoid redundant plotting
 let plottedCities = new Set(); // Track cities currently shown on map
+let cityExpiryTimes = new Map(); // Track when each city marker should expire
+let markerDisplayDurationMinutes = null;
 let markersLayer = L.layerGroup().addTo(map);
 let localGeoData = {}; // High-performance local polygons mapping
 
@@ -233,6 +235,31 @@ function setStatus(state, text) {
 }
 
 function updateUI(data) {
+    if (markerDisplayDurationMinutes === null) {
+        return; // Wait for initialization to complete
+    }
+
+    const now = Date.now();
+    const currentActiveCities = (data && data.data && data.data.data) ? new Set(data.data.data) : new Set();
+
+    // Update expiry for SAFELY keeping recently active cities
+    currentActiveCities.forEach(city => {
+        cityExpiryTimes.set(city, now + markerDisplayDurationMinutes * 60 * 1000);
+    });
+
+    // Cleanup expired markers
+    markersLayer.eachLayer(layer => {
+        const city = layer._cityName;
+        if (city) {
+            const expiryTime = cityExpiryTimes.get(city) || 0;
+            if (!currentActiveCities.has(city) && now > expiryTime) {
+                markersLayer.removeLayer(layer);
+                plottedCities.delete(city);
+                cityExpiryTimes.delete(city);
+            }
+        }
+    });
+
     // System Online/Offline logic
     if (data && data.is_online === false) {
         offlineBanner.style.display = 'block';
@@ -257,8 +284,6 @@ function updateUI(data) {
             setStatus('safe', 'שגרה - אין התרעות');
         }
 
-        markersLayer.clearLayers();
-        plottedCities.clear();
         citySelect.empty().trigger('change'); // Clear Dropdown
         locationsList.innerHTML = '';
         currentAlertId = null;
@@ -349,13 +374,9 @@ async function plotCitiesOnMap(cities) {
         const bounds = L.latLngBounds();
         let hasValidBounds = false;
 
-        // 1. Clean up stale markers and calculate bounds for existing ones
-        const updatedCitiesSet = new Set(cities);
+        // 1. Calculate bounds for existing ones (cleanup handled by updateUI)
         markersLayer.eachLayer(layer => {
-            if (layer._cityName && !updatedCitiesSet.has(layer._cityName)) {
-                markersLayer.removeLayer(layer);
-                plottedCities.delete(layer._cityName);
-            } else if (layer._cityName) {
+            if (layer._cityName) {
                 // Robust bounds fitting for BOTH markers and polygons
                 let lb = null;
                 if (typeof layer.getBounds === 'function') {
@@ -672,8 +693,22 @@ function showDesktopNotification(title, body) {
 }
 
 // Init
-fetchAlerts();
-fetchHistory();
+async function initApp() {
+    try {
+        const res = await fetch('/api/config');
+        const json = await res.json();
+        if (json && json.data && json.data.map) {
+            markerDisplayDurationMinutes = json.data.map.marker_display_duration_minutes;
+        }
+    } catch (e) {
+        console.error("Failed to load map configuration.", e);
+    }
+
+    fetchAlerts();
+    fetchHistory();
+}
+
+initApp();
 // Polling is now handled inside fetchAlerts with setTimeout for adaptive rates
 
 // --- PWA Installation Logic ---
