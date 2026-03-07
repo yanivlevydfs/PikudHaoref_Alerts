@@ -68,22 +68,26 @@ Once the application is running, you can explore and test the endpoints directly
 
 ## Configuration
 
-The application uses a `config.json` file in the root directory for core settings:
-
-```json
-{
-    "scheduler": {
-        "routine_interval_seconds": 120,
-        "emergency_interval_seconds": 10
-    },
-    "map": {
-        "marker_display_duration_minutes": 10
-    }
-}
-```
-- **routine_interval_seconds**: Polling frequency when no alerts are active.
-- **emergency_interval_seconds**: High-speed polling frequency during a detected attack.
-- **marker_display_duration_minutes**: How long city markers securely persist on the dashboard map after the alert begins.
+The├── app/
+│   ├── api/
+│   │   └── routes.py         # Defines the FastAPI endpoints (e.g., /api/alerts)
+│   ├── core/
+│   │   ├── config.py         # Application configuration management
+│   │   └── logging_config.py # Configures standard output logging
+│   ├── db/
+│   │   ├── database.py       # SQLite database operations (History & Stats)
+│   │   └── alerts_history.db # Local SQLite database (Auto-generated)
+│   ├── services/
+│   │   ├── alert_state.py    # Persistent state management with accumulation logic
+│   │   └── oref_client.py    # core logic to interact with the external Oref API (Proxy on Railway)
+│   ├── static/               # Frontend assets (JS, CSS, Icons)
+│   ├── templates/            # HTML templates (Jinja2)
+│   └── main.py               # The FastAPI application & background scheduler entry point
+│
+├── requirements.txt          # Python dependencies
+├── architecture.md           # This file
+├── README.md                 # Project description and run instructions
+└── config.json               # System configuration (Intervals & Proxy) in `config.json`.
 
 ## Proxy Management
 

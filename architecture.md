@@ -18,7 +18,8 @@ PikudHaoref_Alerts/
 │   │   ├── config.py         # Application configuration management
 │   │   └── logging_config.py # Configures standard output logging
 │   ├── db/
-│   │   └── database.py       # SQLite database operations (History & Stats)
+│   │   ├── database.py       # SQLite database operations (History & Stats)
+│   │   └── alerts_history.db # Local SQLite database (Auto-generated)
 │   ├── services/
 │   │   ├── alert_state.py    # Persistent state management with accumulation logic
 │   │   └── oref_client.py    # core logic to interact with the external Oref API (Proxy on Railway)
@@ -29,8 +30,7 @@ PikudHaoref_Alerts/
 ├── requirements.txt          # Python dependencies
 ├── architecture.md           # This file
 ├── README.md                 # Project description and run instructions
-├── config.json               # System configuration (Intervals & Proxy)
-└── alerts_history.db         # Local SQLite database (Auto-generated)
+└── config.json               # System configuration (Intervals & Proxy)
 ```
 
 ## Components
@@ -45,7 +45,7 @@ A thread-safe singleton that holds the current "active" alerts. It implements **
 Handles the complex interaction with Oref's servers. It detects the environment (Railway vs. Local) and automatically decides whether to use a dedicated high-performance proxy (configured in `config.json`) or a direct connection (Local) to bypass 403 blocks.
 
 ### 4. Database Layer (`app/db/database.py`)
-Manages a local **SQLite database** (`alerts_history.db`). It records unique alerts, prevents duplicates, and provides statistical aggregations for the `/stats` page.
+Manages a local **SQLite database** (`app/db/alerts_history.db`). It records unique alerts, prevents duplicates, and provides statistical aggregations for the `/stats` page.
 
 ### 5. Frontend Dashboard (`app/static/` & `app/templates/`)
 A modern, dark-themed dashboard using **Leaflet.js** for mapping. It polls the `/api/alerts` endpoint every 10s and uses **Select2** for city searching. It includes visual warning banners for system errors.

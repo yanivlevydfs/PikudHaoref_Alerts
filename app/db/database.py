@@ -9,7 +9,9 @@ import os
 logger = logging.getLogger("pikudhaoref_app.database")
 
 # Support dynamic directory paths for persistent Volumes (Railway)
-db_dir = os.getenv("DB_DIR", "")
+# Default to the directory of this file (app/db)
+DEFAULT_DB_DIR = Path(__file__).parent.absolute()
+db_dir = os.getenv("DB_DIR", str(DEFAULT_DB_DIR))
 DB_PATH = Path(db_dir) / "alerts_history.db"
 
 def get_db_connection():
