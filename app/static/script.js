@@ -178,6 +178,40 @@ sidebarSheet.addEventListener('touchend', (e) => {
     }
 }, { passive: true });
 
+// --- New: Local Polygon Caching System ---
+const POLYGON_CACHE_KEY = 'geo_polygons_cache';
+const POLYGON_VERSION_KEY = 'geo_polygons_version';
+const CURRENT_POLYGON_VERSION = "v1.1"; // Change this to force all clients to re-fetch
+
+async function loadPolygons() {
+    const cachedPolygons = localStorage.getItem(POLYGON_CACHE_KEY);
+    const cachedVersion = localStorage.getItem(POLYGON_VERSION_KEY);
+
+    if (cachedPolygons && cachedVersion === CURRENT_POLYGON_VERSION) {
+        try {
+            localGeoData = JSON.parse(cachedPolygons);
+            console.log("[GEO] Loaded polygons from cache.");
+            return;
+        } catch (e) {
+            console.warn("[GEO] Cache corrupted, re-fetching...");
+        }
+    }
+    await fetchPolygons();
+}
+
+async function fetchPolygons() {
+    try {
+        const res = await fetch('/static/locations_polygons.json');
+        const data = await res.json();
+        localGeoData = data;
+        localStorage.setItem(POLYGON_CACHE_KEY, JSON.stringify(data));
+        localStorage.setItem(POLYGON_VERSION_KEY, CURRENT_POLYGON_VERSION);
+        console.log("[GEO] Fetched polygons from server.");
+    } catch (err) {
+        console.error("[GEO] Failed to load local polygons:", err);
+    }
+}
+
 // Initialize Select2 on load
 $(document).ready(function () {
     citySelect.select2({
@@ -194,40 +228,6 @@ $(document).ready(function () {
             if (window.innerWidth <= 768) toggleSheet(false);
         }
     });
-
-    // --- New: Local Polygon Caching System ---
-    const POLYGON_CACHE_KEY = 'geo_polygons_cache';
-    const POLYGON_VERSION_KEY = 'geo_polygons_version';
-    const CURRENT_POLYGON_VERSION = "v1.1"; // Change this to force all clients to re-fetch
-
-    const cachedPolygons = localStorage.getItem(POLYGON_CACHE_KEY);
-    const cachedVersion = localStorage.getItem(POLYGON_VERSION_KEY);
-
-    if (cachedPolygons && cachedVersion === CURRENT_POLYGON_VERSION) {
-        try {
-            localGeoData = JSON.parse(cachedPolygons);
-        } catch (e) {
-            console.warn("[GEO] Cache corrupted, re-fetching...");
-            fetchPolygons();
-        }
-    } else {
-        fetchPolygons();
-    }
-
-    function fetchPolygons() {
-        fetch('/static/locations_polygons.json')
-            .then(res => res.json())
-            .then(data => {
-                localGeoData = data;
-                try {
-                    localStorage.setItem(POLYGON_CACHE_KEY, JSON.stringify(data));
-                    localStorage.setItem(POLYGON_VERSION_KEY, CURRENT_POLYGON_VERSION);
-                } catch (e) {
-                    console.warn("[GEO] LocalStorage full, polygons will reload next time.");
-                }
-            })
-            .catch(err => console.error("[GEO] Failed to load local polygons:", err));
-    }
 });
 
 // Caching Geocoding Results to be gentle on Nominatim
@@ -262,7 +262,7 @@ function setStatus(state, text) {
 
 function updateUI(data) {
     if (markerDisplayDurationMinutes === null) {
-        return; // Wait for initialization to complete
+        markerDisplayDurationMinutes = 10; // Fallback to 10 minutes if config didn't load
     }
 
     const now = Date.now();
@@ -300,24 +300,39 @@ function updateUI(data) {
         if (noAlertsTitle) noAlertsTitle.innerText = 'שגרה';
     }
 
-    if (!data || data.message === "No active alerts at the moment." || !data.data) {
-        noAlertsScreen.classList.add('active');
-        activeAlertsScreen.classList.remove('active');
+    if (!data || (data.message === "No active alerts at the moment." && currentActiveCities.size === 0) || !data.data) {
+        // Only show "No Alerts" if there are truly no active OR recently active cities
+        if (plottedCities.size === 0) {
+            noAlertsScreen.classList.add('active');
+            activeAlertsScreen.classList.remove('active');
 
-        if (data && data.is_online === false) {
-            setStatus('danger', 'מערכת לא זמינה');
-        } else {
-            setStatus('safe', 'שגרה - אין התראות');
+            if (data && data.is_online === false) {
+                setStatus('danger', 'מערכת לא זמינה');
+            } else {
+                setStatus('safe', 'שגרה - אין התראות');
+            }
+
+            citySelect.empty().trigger('change'); // Clear Dropdown
+            locationsList.innerHTML = '';
+            currentAlertId = null;
+            currentCitiesHash = "";
+            return;
         }
-
-        citySelect.empty().trigger('change'); // Clear Dropdown
-        locationsList.innerHTML = '';
-        currentAlertId = null;
-        currentCitiesHash = "";
-        return;
     }
 
-    const alertData = data.data;
+    // If we have no "fresh" data from the API but we have cached plotted cities,
+    // we manufacture a "fake" alertData structure to keep the UI populated.
+    let alertData = data ? data.data : null;
+    if (!alertData && plottedCities.size > 0) {
+        alertData = {
+            id: currentAlertId || "persist_id",
+            title: alertTitle.innerText || "התרעה פעילה!",
+            desc: alertDesc.innerText || "היכנסו למרחב מוגן.",
+            data: Array.from(plottedCities)
+        };
+    }
+
+    if (!alertData) return;
 
     // Prevent duplicate processing if data hasn't changed
     const citiesHash = (alertData.data || []).sort().join('|');
@@ -483,71 +498,63 @@ async function plotCitiesOnMap(cities) {
 
         if (hasValidBounds) map.fitBounds(bounds, { padding: [50, 50], maxZoom: 12 });
 
-        // --- BACKEND GEOCODING ROUTER ---
+        // --- BACKEND GEOCODING ROUTER (Optimized Batch Request) ---
         if (missingCitiesForBackend.length > 0) {
             setStatus('fetching', `מאחזר מיקומים מהשרת...`);
 
-            const fetchPromises = missingCitiesForBackend.map(async (city) => {
-                try {
-                    const response = await fetch('/api/geocode', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ cities: [city] })
-                    });
+            try {
+                const response = await fetch('/api/geocode', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ cities: missingCitiesForBackend })
+                });
 
-                    if (response.ok) {
-                        const result = await response.json();
-                        const backendGeoData = (result.data || {})[city];
+                if (response.ok) {
+                    const result = await response.json();
+                    const batchData = result.data || {};
 
-                        if (!backendGeoData || backendGeoData === "ERROR") return;
+                    for (const city of missingCitiesForBackend) {
+                        const backendGeoData = batchData[city];
+                        if (!backendGeoData || backendGeoData === "ERROR" || backendGeoData === "NOT_FOUND") continue;
 
                         geoCache[city] = backendGeoData;
-                        saveGeoCacheSafe();
 
-                        if (backendGeoData !== "NOT_FOUND") {
-                            try {
-                                let validGeoData = backendGeoData;
-                                if (typeof validGeoData === 'string') {
-                                    try { validGeoData = JSON.parse(validGeoData); } catch (e) { }
-                                }
-
-                                // Wrap simple geometries in a Feature object if needed
-                                if (validGeoData.type && validGeoData.type !== "Feature" && validGeoData.type !== "FeatureCollection") {
-                                    validGeoData = {
-                                        type: "Feature",
-                                        geometry: validGeoData
-                                    };
-                                }
-
-                                const layer = L.geoJSON(validGeoData, {
-                                    style: { color: "#ff0000", weight: 2, opacity: 1, fillColor: "#ff0000", fillOpacity: 0.3 },
-                                    pointToLayer: function (feature, latlng) {
-                                        return L.circleMarker(latlng, { radius: 8, fillColor: "#ff0000", color: "#ffffff", weight: 1, opacity: 1, fillOpacity: 0.8 });
-                                    }
-                                }).addTo(markersLayer);
-
-                                layer._cityName = city;
-                                layer.bindTooltip(city, { direction: 'center', className: 'custom-tooltip' });
-                                plottedCities.add(city);
-
-                                const layerBounds = layer.getBounds();
-                                if (layerBounds.isValid()) {
-                                    bounds.extend(layerBounds);
-                                    hasValidBounds = true;
-                                    // Update the map dynamically as results come in
-                                    map.fitBounds(bounds, { padding: [50, 50], maxZoom: 12 });
-                                }
-                            } catch (err) {
-                                console.error(`Error plotting backend returned ${city}`, err);
+                        try {
+                            let validGeoData = backendGeoData;
+                            if (typeof validGeoData === 'string') {
+                                try { validGeoData = JSON.parse(validGeoData); } catch (e) { }
                             }
+
+                            if (validGeoData.type && validGeoData.type !== "Feature" && validGeoData.type !== "FeatureCollection") {
+                                validGeoData = { type: "Feature", geometry: validGeoData };
+                            }
+
+                            const layer = L.geoJSON(validGeoData, {
+                                style: { color: "#ff0000", weight: 2, opacity: 1, fillColor: "#ff0000", fillOpacity: 0.3 },
+                                pointToLayer: function (feature, latlng) {
+                                    return L.circleMarker(latlng, { radius: 8, fillColor: "#ff0000", color: "#ffffff", weight: 1, opacity: 1, fillOpacity: 0.8 });
+                                }
+                            }).addTo(markersLayer);
+
+                            layer._cityName = city;
+                            layer.bindTooltip(city, { direction: 'center', className: 'custom-tooltip' });
+                            plottedCities.add(city);
+
+                            const layerBounds = layer.getBounds();
+                            if (layerBounds.isValid()) {
+                                bounds.extend(layerBounds);
+                                hasValidBounds = true;
+                            }
+                        } catch (err) {
+                            console.error(`Error plotting backend returned ${city}`, err);
                         }
                     }
-                } catch (err) {
-                    console.error(`[GEO] Backend routing failed for ${city}:`, err);
+                    saveGeoCacheSafe();
+                    if (hasValidBounds) map.fitBounds(bounds, { padding: [50, 50], maxZoom: 12 });
                 }
-            });
-
-            await Promise.allSettled(fetchPromises);
+            } catch (err) {
+                console.error(`[GEO] Backend batch routing failed:`, err);
+            }
         }
 
         if (hasValidBounds) map.fitBounds(bounds, { padding: [50, 50], maxZoom: 12 });
@@ -607,6 +614,50 @@ function panToCity(cityName) {
 let pollInterval = 10000;
 let pollTimeout = null;
 
+/**
+ * Pre-populates the map with recent history on page load.
+ */
+function applyHistoryToMap(alerts) {
+    if (!alerts || !alerts.length) return;
+    if (markerDisplayDurationMinutes === null) markerDisplayDurationMinutes = 10;
+
+    const now = Date.now();
+    const recentCities = new Set();
+
+    alerts.forEach(alert => {
+        const alertTime = new Date(alert.timestamp).getTime();
+        const expiryTime = alertTime + markerDisplayDurationMinutes * 60 * 1000;
+
+        if (expiryTime > now) {
+            (alert.locations || []).forEach(city => {
+                const currentExpiry = cityExpiryTimes.get(city) || 0;
+                if (expiryTime > currentExpiry) {
+                    cityExpiryTimes.set(city, expiryTime);
+                    recentCities.add(city);
+                }
+            });
+        }
+    });
+
+    if (recentCities.size > 0) {
+        console.log(`[INIT] Restoring ${recentCities.size} recent cities from history.`);
+        plotCitiesOnMap(Array.from(recentCities));
+
+        // Use the most recent alert from history to populate UI initial state
+        const newestAlert = alerts[0];
+        updateUI({
+            message: "Restored from history",
+            is_online: true,
+            data: {
+                id: newestAlert.alert_id,
+                title: newestAlert.title,
+                desc: newestAlert.description,
+                data: Array.from(recentCities)
+            }
+        });
+    }
+}
+
 async function fetchAlerts() {
     setStatus('fetching', 'בודק מול השרת...');
     try {
@@ -642,6 +693,7 @@ async function fetchHistory() {
         const res = await fetch('/api/alerts/history');
         const json = await res.json();
 
+        // Return if we only want the data
         if (json.data && json.data.length > 0) {
             historyContent.innerHTML = '';
             json.data.forEach(alert => {
@@ -659,10 +711,12 @@ async function fetchHistory() {
         } else {
             historyContent.innerHTML = 'אין התראות ב-24 שעות האחרונות. נהדר!';
         }
+        return json;
     } catch (err) {
         console.error("Failed to fetch history", err);
         historyContent.innerHTML = 'שגיאה בטעינת הארכיון.';
     }
+    return null;
 }
 
 // Media & Notification Helpers
@@ -745,18 +799,32 @@ function showDesktopNotification(title, body) {
 
 // Init
 async function initApp() {
+    // 1. Load Polygons, Configuration and History in Parallel
+    console.log("Initializing application...");
     try {
-        const res = await fetch('/api/config');
-        const json = await res.json();
-        if (json && json.data && json.data.map) {
-            markerDisplayDurationMinutes = json.data.map.marker_display_duration_minutes;
+        const [configRes, _, historyData] = await Promise.all([
+            fetch('/api/config'),
+            loadPolygons(),
+            fetchHistory()
+        ]);
+
+        if (configRes.ok) {
+            const json = await configRes.json();
+            if (json && json.data && json.data.map) {
+                markerDisplayDurationMinutes = json.data.map.marker_display_duration_minutes;
+            }
+        }
+
+        // 2. Restore recent alerts to map
+        if (historyData && historyData.data) {
+            applyHistoryToMap(historyData.data);
         }
     } catch (e) {
-        console.error("Failed to load map configuration.", e);
+        console.error("Failed to load initial application state.", e);
     }
 
+    // 3. Start Polling
     fetchAlerts();
-    fetchHistory();
 }
 
 initApp();
