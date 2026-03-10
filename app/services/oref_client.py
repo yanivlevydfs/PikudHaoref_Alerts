@@ -100,6 +100,40 @@ def fetch_active_alerts():
             logger.info("SUCCESS: Direct connection successful.")
         return process_response(response)
 
+def expand_city_zones(cities):
+    """
+    Expands compound city strings returned by Oref into individual zones.
+    Example: "אשדוד - ג,ו,ז" -> ["אשדוד ג", "אשדוד ו", "אשדוד ז"]
+    Example 2: "חיפה - כרמל, הדר ועיר תחתית" -> ["חיפה כרמל", "חיפה הדר ועיר תחתית"]
+    """
+    expanded = []
+    if not isinstance(cities, list):
+        return cities
+
+    for city in cities:
+        if isinstance(city, str) and (" - " in city or " -" in city):
+            # Split by comma to handle multiple base groups like "אשדוד - ג,ו,ז, אשדוד - ח,ט"
+            parts = city.split(",")
+            current_prefix = None
+            
+            for part in parts:
+                part = part.strip()
+                if "-" in part:
+                    prefix, zone = part.split("-", 1)
+                    current_prefix = prefix.strip()
+                    expanded.append(f"{current_prefix} {zone.strip()}")
+                elif current_prefix:
+                    expanded.append(f"{current_prefix} {part.strip()}")
+                else:
+                    expanded.append(part.strip())
+        else:
+            if isinstance(city, str):
+                expanded.append(city.strip())
+            else:
+                expanded.append(city)
+                
+    return expanded
+
 def process_response(response):
     if not response:
         return {"error": "All connection attempts failed"}
@@ -112,7 +146,19 @@ def process_response(response):
         content = response.content.decode('utf-8-sig', errors='ignore').strip()
         if not content:
             return None
-        return json.loads(content)
+            
+        data = json.loads(content)
+        
+        # Oref API returns either a list of dicts, or a single dict, or occasionally other formats.
+        # We need to expand the 'data' array in whatever format it comes in.
+        if isinstance(data, list):
+            for alert in data:
+                if "data" in alert and isinstance(alert["data"], list):
+                    alert["data"] = expand_city_zones(alert["data"])
+        elif isinstance(data, dict) and "data" in data and isinstance(data["data"], list):
+            data["data"] = expand_city_zones(data["data"])
+            
+        return data
     except Exception as e:
         logger.error(f"Failed to process Oref response: {e}")
         return {"error": "Invalid data received from Oref"}

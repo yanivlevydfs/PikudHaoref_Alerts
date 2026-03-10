@@ -354,21 +354,7 @@ function updateUI(data) {
         const expander = document.querySelector('.locations-expander');
         if (expander) expander.setAttribute('open', ''); // Use setAttribute for safety
 
-        citySelect.empty();
-        citySelect.append(new Option('', '', false, false));
-        locationsList.innerHTML = '';
-
-        (alertData.data || []).forEach(city => {
-            const option = new Option(city, city, false, false);
-            citySelect.append(option);
-
-            const li = document.createElement('li');
-            li.className = 'location-item';
-            li.innerText = city;
-            li.addEventListener('click', () => panToCity(city));
-            locationsList.appendChild(li);
-        });
-        citySelect.trigger('change');
+        refreshLocationsListUI(alertData.data || []);
 
         // --- TRIGGER NOTIFICATIONS & MEDIA ---
         // Only trigger on NEW alerts!
@@ -829,6 +815,69 @@ async function initApp() {
 
 initApp();
 // Polling is now handled inside fetchAlerts with setTimeout for adaptive rates
+
+// --- ACTIVE REFRESH TIMER ---
+// Proactively removes expired cities from the map and UI without waiting for a new API response
+function cleanupExpiredAlerts() {
+    const now = Date.now();
+    let changed = false;
+
+    markersLayer.eachLayer(layer => {
+        const city = layer._cityName;
+        if (city) {
+            const expiryTime = cityExpiryTimes.get(city) || 0;
+            if (now > expiryTime) {
+                markersLayer.removeLayer(layer);
+                plottedCities.delete(city);
+                cityExpiryTimes.delete(city);
+                changed = true;
+            }
+        }
+    });
+
+    if (changed) {
+        if (plottedCities.size === 0) {
+            // Safety: Completely reset to UI Shigra state
+            noAlertsScreen.classList.add('active');
+            activeAlertsScreen.classList.remove('active');
+
+            // Re-check internet to ensure we don't say "Safe" if internet disconnected
+            if (offlineBanner.style.display !== 'block') {
+                setStatus('safe', 'שגרה - אין התראות');
+            }
+
+            citySelect.empty().trigger('change');
+            locationsList.innerHTML = '';
+            currentAlertId = null;
+            currentCitiesHash = "";
+        } else {
+            // Partial expiration: Update the Sidebar Lists
+            refreshLocationsListUI(Array.from(plottedCities));
+            locationsCount.innerText = plottedCities.size;
+        }
+    }
+}
+
+function refreshLocationsListUI(activeCitiesList) {
+    citySelect.empty();
+    citySelect.append(new Option('', '', false, false));
+    locationsList.innerHTML = '';
+
+    activeCitiesList.forEach(city => {
+        const option = new Option(city, city, false, false);
+        citySelect.append(option);
+
+        const li = document.createElement('li');
+        li.className = 'location-item';
+        li.innerText = city;
+        li.addEventListener('click', () => panToCity(city));
+        locationsList.appendChild(li);
+    });
+    citySelect.trigger('change');
+}
+
+// Run the proactive cleanup loop every 1 second
+setInterval(cleanupExpiredAlerts, 1000);
 
 // --- PWA Installation Logic ---
 let deferredPrompt;
